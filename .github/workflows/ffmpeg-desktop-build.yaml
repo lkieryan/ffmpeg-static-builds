@@ -170,7 +170,11 @@ jobs:
           set -euxo pipefail
           export MINGW_PREFIX=/mingw64
           export PATH="$MINGW_PREFIX/bin:$PATH"
-          which x86_64-w64-mingw32-ar
+          export AR="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-ar"
+          export RANLIB="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-ranlib"
+          export NM="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-nm"
+          command -v "$AR"
+          command -v "$RANLIB"
           export PKG_CONFIG_PATH=/mingw64/lib/pkgconfig
           export PKG_CONFIG=/mingw64/bin/pkg-config
           cd "$GITHUB_WORKSPACE"
@@ -187,6 +191,12 @@ jobs:
           mkdir -p "$PREFIX"
 
           ./configure \
+            --cc="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc" \
+            --cxx="$MINGW_PREFIX/bin/x86_64-w64-mingw32-g++" \
+            --ld="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc" \
+            --ar="$AR" \
+            --ranlib="$RANLIB" \
+            --nm="$NM" \
             --prefix="$PREFIX" \
             --target-os=mingw32 \
             --arch=x86_64 \
