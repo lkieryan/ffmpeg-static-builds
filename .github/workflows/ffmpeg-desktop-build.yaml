@@ -161,6 +161,7 @@ jobs:
           PACKAGE_NAME="ffmpeg-${FFMPEG_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
           tar -czf "$GITHUB_WORKSPACE/artifacts/$PACKAGE_NAME" .
 
+
       - name: Build FFmpeg (Windows)
         if: matrix.os == 'windows-latest'
         shell: msys2 {0}
@@ -227,7 +228,9 @@ jobs:
 
           cd "$PREFIX"
           PACKAGE_NAME="ffmpeg-${FFMPEG_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
-          tar -czf "$GITHUB_WORKSPACE/artifacts/$PACKAGE_NAME" .      - name: 上传构建产物
+          tar -czf "$GITHUB_WORKSPACE/artifacts/$PACKAGE_NAME" .
+
+      - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-${{ env.FFMPEG_VERSION }}-${{ matrix.artifact_suffix }}
