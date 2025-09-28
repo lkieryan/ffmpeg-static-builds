@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       ffmpeg-version:
-        description: "FFmpeg 发布标签（例如 n7.0.2）"
+        description: "FFmpeg release tag (e.g. n7.0.2)"
         required: false
         default: "n7.0.2"
   push:
@@ -42,7 +42,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          : "${FFMPEG_VERSION:?FFMPEG_VERSION 未设置}"
+          : "${FFMPEG_VERSION:?FFMPEG_VERSION not set}"
           mkdir -p "$GITHUB_WORKSPACE/artifacts"
 
       - name: Prepare artifact directory (Windows)
@@ -50,7 +50,7 @@ jobs:
         shell: pwsh
         run: |
           if (-not $env:FFMPEG_VERSION) {
-            throw 'FFMPEG_VERSION 未设置'
+            throw 'FFMPEG_VERSION not set'
           }
           $artifactPath = Join-Path $env:GITHUB_WORKSPACE 'artifacts'
           if (-not (Test-Path $artifactPath)) {
@@ -101,7 +101,7 @@ jobs:
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-ca-certificates
 
-      - name: Build FFmpeg (POSIX)
+      - name: Build FFmpeg (Linux / macOS)
         if: matrix.os != 'windows-latest'
         shell: bash
         env:
@@ -116,14 +116,10 @@ jobs:
             SRC_DIR=$(tar -tf ffmpeg.tar.gz | head -1 | cut -d/ -f1)
           fi
           cd "$SRC_DIR"
-          WORKSPACE_POSIX=$(cygpath -u "$GITHUB_WORKSPACE")
 
-          WORKSPACE_POSIX=$(cygpath -u "$GITHUB_WORKSPACE")
           PREFIX="$GITHUB_WORKSPACE/build"
           rm -rf "$PREFIX"
           mkdir -p "$PREFIX"
-          PREFIX_POSIX=$(cygpath -u "$PREFIX")
-          PREFIX_POSIX=$(cygpath -u "$PREFIX")
 
           JOBS=$(sysctl -n hw.ncpu 2>/dev/null || nproc)
 
@@ -162,10 +158,9 @@ jobs:
           make install
 
           PACKAGE_NAME="ffmpeg-${FFMPEG_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
-          mkdir -p "$WORKSPACE_POSIX/artifacts"
-          tar -czf "$WORKSPACE_POSIX/artifacts/$PACKAGE_NAME" -C "$PREFIX_POSIX" .
-          tar -czf "$WORKSPACE_POSIX/artifacts/$PACKAGE_NAME" -C "$PREFIX_POSIX" .
-
+          cd "$GITHUB_WORKSPACE"
+          mkdir -p artifacts
+          tar -czf "artifacts/$PACKAGE_NAME" -C build .
 
       - name: Build FFmpeg (Windows)
         if: matrix.os == 'windows-latest'
@@ -180,16 +175,15 @@ jobs:
           export RANLIB="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-ranlib"
           export NM="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-nm"
           export STRIP="$MINGW_PREFIX/bin/strip"
-          command -v "$AR"
-          command -v "$RANLIB"
-          command -v "$NM"
-          command -v "$STRIP"
+          for tool in "$AR" "$RANLIB" "$NM" "$STRIP"; do command -v "$tool"; done
           ln -sf "$AR" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-ar"
           ln -sf "$RANLIB" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-ranlib"
           ln -sf "$NM" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-nm"
           ln -sf "$STRIP" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-strip"
+
           export PKG_CONFIG_PATH=/mingw64/lib/pkgconfig
           export PKG_CONFIG=/mingw64/bin/pkg-config
+
           cd "$GITHUB_WORKSPACE"
           curl -L "$FFMPEG_SOURCE_URL/archive/refs/tags/${FFMPEG_VERSION}.tar.gz" -o ffmpeg.tar.gz
           tar -xf ffmpeg.tar.gz
@@ -236,12 +230,12 @@ jobs:
           make install
 
           PACKAGE_NAME="ffmpeg-${FFMPEG_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
-          mkdir -p "$WORKSPACE_POSIX/artifacts"
-          tar -czf "$WORKSPACE_POSIX/artifacts/$PACKAGE_NAME" -C "$PREFIX_POSIX" .
+          cd "$GITHUB_WORKSPACE"
+          mkdir -p artifacts
+          tar -czf "artifacts/$PACKAGE_NAME" -C build .
 
-      - name: 上传构建产物
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-${{ env.FFMPEG_VERSION }}-${{ matrix.artifact_suffix }}
           path: artifacts/ffmpeg-${{ env.FFMPEG_VERSION }}-${{ matrix.artifact_suffix }}.tar.gz
-
