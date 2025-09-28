@@ -119,7 +119,7 @@ jobs:
             git clone https://github.com/microsoft/vcpkg "$env:GITHUB_WORKSPACE\\vcpkg"
           }
           & "$env:GITHUB_WORKSPACE\\vcpkg\\bootstrap-vcpkg.bat" -disableMetrics
-          & "$env:GITHUB_WORKSPACE\\vcpkg\\vcpkg.exe" install zlib:x64-windows openssl3:x64-windows
+          & "$env:GITHUB_WORKSPACE\\vcpkg\\vcpkg.exe" install zlib:x64-windows openssl:x64-windows
 
       - name: Build FFmpeg (Linux / macOS)
         if: matrix.os != 'windows-latest'
@@ -334,6 +334,7 @@ jobs:
             --enable-version3 \
             --enable-openssl \
             --enable-zlib \
+            --enable-nonfree \
             --extra-cflags="-I$INCLUDE_WIN" \
             --extra-ldflags="-LIBPATH:$LIB_WIN" \
             --extra-libs="libssl.lib libcrypto.lib zlib.lib ws2_32.lib bcrypt.lib crypt32.lib"
