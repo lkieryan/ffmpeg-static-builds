@@ -179,6 +179,10 @@ jobs:
           command -v "$RANLIB"
           command -v "$NM"
           command -v "$STRIP"
+          ln -sf "$AR" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-ar"
+          ln -sf "$RANLIB" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-ranlib"
+          ln -sf "$NM" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-nm"
+          ln -sf "$STRIP" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-strip"
           export PKG_CONFIG_PATH=/mingw64/lib/pkgconfig
           export PKG_CONFIG=/mingw64/bin/pkg-config
           cd "$GITHUB_WORKSPACE"
