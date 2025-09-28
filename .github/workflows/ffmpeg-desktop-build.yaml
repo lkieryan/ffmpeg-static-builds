@@ -318,6 +318,8 @@ jobs:
           INCLUDE_MSYS=$(cygpath -m "$VCPKG_ROOT/installed/x64-windows/include")
           LIB_MSYS=$(cygpath -m "$VCPKG_ROOT/installed/x64-windows/lib")
           LIB_POSIX=$(cygpath "$VCPKG_ROOT/installed/x64-windows/lib")
+          export PKG_CONFIG_PATH=$(cygpath -m "$VCPKG_ROOT/installed/x64-windows/lib/pkgconfig")
+          export PATH="$PATH:$(cygpath -m "$VCPKG_ROOT/installed/x64-windows/bin")"
 
           ./configure \
             --toolchain=msvc \
@@ -337,7 +339,9 @@ jobs:
             --enable-nonfree \
             --extra-cflags="-I$INCLUDE_MSYS" \
             --extra-ldflags="-LIBPATH:$LIB_MSYS" \
-            --extra-libs="libssl.lib libcrypto.lib zlib.lib ws2_32.lib bcrypt.lib crypt32.lib"
+            --openssl-includes="$INCLUDE_MSYS" \
+            --openssl-libs="libssl.lib libcrypto.lib ws2_32.lib bcrypt.lib crypt32.lib" \
+            --extra-libs="zlib.lib"
 
           nmake
           nmake install
