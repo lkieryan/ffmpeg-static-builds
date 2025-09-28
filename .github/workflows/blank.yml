@@ -235,7 +235,7 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/artifacts"
 
       - name: Set up Android NDK
-        uses: android-actions/setup-ndk@v3
+        uses: nttld/setup-ndk@v1
         with:
           ndk-version: r26d
 
@@ -309,7 +309,8 @@ jobs:
             --disable-debug \
             --disable-doc \
             --disable-ffplay \
-            --disable-ffprobe \
+            --disable-ffprobe \\
+            --disable-avdevice \\
             --disable-shared \
             --enable-static \
             --enable-gpl \
@@ -411,7 +412,8 @@ jobs:
             --disable-debug \
             --disable-doc \
             --disable-ffplay \
-            --disable-ffprobe \
+            --disable-ffprobe \\
+            --disable-avdevice \\
             --disable-shared \
             --enable-static \
             --enable-gpl \
@@ -464,3 +466,4 @@ jobs:
             dist/checksums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
