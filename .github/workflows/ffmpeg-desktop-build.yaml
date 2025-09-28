@@ -116,10 +116,14 @@ jobs:
             SRC_DIR=$(tar -tf ffmpeg.tar.gz | head -1 | cut -d/ -f1)
           fi
           cd "$SRC_DIR"
+          WORKSPACE_POSIX=$(cygpath -u "$GITHUB_WORKSPACE")
 
+          WORKSPACE_POSIX=$(cygpath -u "$GITHUB_WORKSPACE")
           PREFIX="$GITHUB_WORKSPACE/build"
           rm -rf "$PREFIX"
           mkdir -p "$PREFIX"
+          PREFIX_POSIX=$(cygpath -u "$PREFIX")
+          PREFIX_POSIX=$(cygpath -u "$PREFIX")
 
           JOBS=$(sysctl -n hw.ncpu 2>/dev/null || nproc)
 
@@ -157,9 +161,10 @@ jobs:
           make -j"$JOBS"
           make install
 
-          cd "$PREFIX"
           PACKAGE_NAME="ffmpeg-${FFMPEG_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
-          tar -czf "$GITHUB_WORKSPACE/artifacts/$PACKAGE_NAME" .
+          mkdir -p "$WORKSPACE_POSIX/artifacts"
+          tar -czf "$WORKSPACE_POSIX/artifacts/$PACKAGE_NAME" -C "$PREFIX_POSIX" .
+          tar -czf "$WORKSPACE_POSIX/artifacts/$PACKAGE_NAME" -C "$PREFIX_POSIX" .
 
 
       - name: Build FFmpeg (Windows)
@@ -230,9 +235,9 @@ jobs:
           make -j"$(nproc)"
           make install
 
-          cd "$PREFIX"
           PACKAGE_NAME="ffmpeg-${FFMPEG_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
-          tar -czf "$GITHUB_WORKSPACE/artifacts/$PACKAGE_NAME" .
+          mkdir -p "$WORKSPACE_POSIX/artifacts"
+          tar -czf "$WORKSPACE_POSIX/artifacts/$PACKAGE_NAME" -C "$PREFIX_POSIX" .
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
