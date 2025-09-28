@@ -72,6 +72,7 @@ jobs:
             pkg-config \
             texinfo \
             zlib1g-dev \
+            libssl-dev \\
             nasm \
             yasm
 
@@ -96,6 +97,8 @@ jobs:
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-nasm
             mingw-w64-x86_64-yasm
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-ca-certificates
 
       - name: Build FFmpeg (POSIX desktop)
         if: matrix.os != 'windows-latest'
@@ -107,11 +110,11 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           curl -L "$FFMPEG_SOURCE_URL/archive/refs/tags/${FFMPEG_VERSION}.tar.gz" -o ffmpeg.tar.gz
           tar -xf ffmpeg.tar.gz
-          SRC_DIR=$(tar -tf ffmpeg.tar.gz | head -1 | cut -d/ -f1)
+          SRC_DIR="FFmpeg-${FFMPEG_VERSION}"
+          if [[ ! -d "$SRC_DIR" ]]; then
+            SRC_DIR=$(tar -tf ffmpeg.tar.gz | head -1 | cut -d/ -f1)
+          fi
           cd "$SRC_DIR"
-
-          PREFIX="$GITHUB_WORKSPACE/build"
-          rm -rf "$PREFIX"
           mkdir -p "$PREFIX"
 
           JOBS=$(sysctl -n hw.ncpu 2>/dev/null || nproc)
@@ -133,7 +136,7 @@ jobs:
           )
 
           if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            CONFIG_ARGS+=(--enable-pic)
+            CONFIG_ARGS+=(--enable-pic --enable-openssl)
           else
             if [[ "${{ matrix.mac_arch }}" == "x86_64" ]]; then
               export CFLAGS="-arch x86_64 -mmacosx-version-min=11.0"
@@ -164,7 +167,10 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           curl -L "$FFMPEG_SOURCE_URL/archive/refs/tags/${FFMPEG_VERSION}.tar.gz" -o ffmpeg.tar.gz
           tar -xf ffmpeg.tar.gz
-          SRC_DIR=$(tar -tf ffmpeg.tar.gz | head -1 | cut -d/ -f1)
+          SRC_DIR="FFmpeg-${FFMPEG_VERSION}"
+          if [[ ! -d "$SRC_DIR" ]]; then
+            SRC_DIR=$(tar -tf ffmpeg.tar.gz | head -1 | cut -d/ -f1)
+          fi
           cd "$SRC_DIR"
 
           PREFIX="$GITHUB_WORKSPACE/build"
@@ -187,11 +193,13 @@ jobs:
             --enable-muxer=dash \
             --enable-protocol=http \
             --enable-protocol=https \
+            --enable-openssl \
             --disable-shared \
             --enable-static \
             --enable-gpl \
             --enable-version3 \
             --extra-cflags="-static -static-libgcc -static-libstdc++" \
+            --extra-libs="-lssl -lcrypto -lws2_32 -lgdi32 -lz -lcrypt32" \\
             --extra-ldflags="-static"
 
           make -j"$(nproc)"
@@ -250,7 +258,10 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           curl -L "$FFMPEG_SOURCE_URL/archive/refs/tags/${FFMPEG_VERSION}.tar.gz" -o ffmpeg.tar.gz
           tar -xf ffmpeg.tar.gz
-          SRC_DIR=$(tar -tf ffmpeg.tar.gz | head -1 | cut -d/ -f1)
+          SRC_DIR="FFmpeg-${FFMPEG_VERSION}"
+          if [[ ! -d "$SRC_DIR" ]]; then
+            SRC_DIR=$(tar -tf ffmpeg.tar.gz | head -1 | cut -d/ -f1)
+          fi
           cd "$SRC_DIR"
 
           PREFIX="$GITHUB_WORKSPACE/build"
@@ -318,7 +329,6 @@ jobs:
             --enable-demuxer=dash \
             --enable-muxer=dash \
             --enable-protocol=http \
-            --enable-protocol=https \
             --extra-cflags="$EXTRA_CFLAGS" \
             --extra-ldflags="$EXTRA_LDFLAGS"
 
@@ -373,7 +383,10 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           curl -L "$FFMPEG_SOURCE_URL/archive/refs/tags/${FFMPEG_VERSION}.tar.gz" -o ffmpeg.tar.gz
           tar -xf ffmpeg.tar.gz
-          SRC_DIR=$(tar -tf ffmpeg.tar.gz | head -1 | cut -d/ -f1)
+          SRC_DIR="FFmpeg-${FFMPEG_VERSION}"
+          if [[ ! -d "$SRC_DIR" ]]; then
+            SRC_DIR=$(tar -tf ffmpeg.tar.gz | head -1 | cut -d/ -f1)
+          fi
           cd "$SRC_DIR"
 
           PREFIX="$GITHUB_WORKSPACE/build"
@@ -421,7 +434,6 @@ jobs:
             --enable-demuxer=dash \
             --enable-muxer=dash \
             --enable-protocol=http \
-            --enable-protocol=https \
             --extra-cflags="$EXTRA_CFLAGS" \
             --extra-ldflags="$EXTRA_LDFLAGS"
 
@@ -466,4 +478,6 @@ jobs:
             dist/checksums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
 
