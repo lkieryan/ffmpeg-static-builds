@@ -91,7 +91,7 @@ jobs:
             x86_64)
               TARGET=x86_64-linux-android
               FF_ARCH=x86_64
-              CPU=x86_64
+          CPU=generic
               ;;
             *)
               echo "Unsupported arch $ARCH" >&2
