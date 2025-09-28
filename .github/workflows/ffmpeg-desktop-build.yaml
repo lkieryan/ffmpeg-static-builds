@@ -260,7 +260,7 @@ jobs:
         env:
           ARTIFACT_SUFFIX: ${{ matrix.artifact_suffix }}
         run: |
-          $programFilesX86 = ${env:ProgramFiles(x86)}
+          $programFilesX86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
           $vswhere = $null
           if ($programFilesX86) {
             $vswhereCandidate = Join-Path $programFilesX86 'Microsoft Visual Studio\Installer\vswhere.exe'
