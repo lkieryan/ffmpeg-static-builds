@@ -290,7 +290,7 @@ jobs:
             throw 'vcvars64.bat not found'
           }
 
-          $bash = 'C:\Program Files\Git\bin\bash.exe'
+          $bash = Join-Path $env:ProgramFiles 'Git\bin\bash.exe'
           if (-not (Test-Path $bash)) {
             throw 'Git Bash not found'
           }
@@ -357,7 +357,7 @@ jobs:
           $scriptContent = [regex]::Replace($scriptContent, '^(          )', '', [System.Text.RegularExpressions.RegexOptions]::Multiline)
           $scriptContent | Set-Content -Path $scriptPath -Encoding utf8NoBOM
 
-          & cmd.exe /c ""$vcvars" && "$bash" --noprofile --norc "$scriptPath""
+          & cmd.exe /s /c "\"$vcvars\" && \"$bash\" --noprofile --norc \"$scriptPath\""
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
