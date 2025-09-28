@@ -357,7 +357,16 @@ jobs:
           $scriptContent = [regex]::Replace($scriptContent, '^(          )', '', [System.Text.RegularExpressions.RegexOptions]::Multiline)
           $scriptContent | Set-Content -Path $scriptPath -Encoding utf8NoBOM
 
-          & cmd.exe /s /c "\"$vcvars\" && \"$bash\" --noprofile --norc \"$scriptPath\""
+          $cmdWrapper = @"
+          @echo off
+          call "$vcvars"
+          "$bash" --noprofile --norc "$scriptPath"
+          "@
+          $cmdWrapperPath = Join-Path $env:GITHUB_WORKSPACE 'msvc-wrapper.cmd'
+          $cmdWrapper = [regex]::Replace($cmdWrapper, "^(          )", "", [System.Text.RegularExpressions.RegexOptions]::Multiline)
+          $cmdWrapper | Set-Content -Path $cmdWrapperPath -Encoding ascii
+
+          & cmd.exe /c "$cmdWrapperPath"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
