@@ -1,284 +1,273 @@
-name: Build FFmpeg Desktop
+name: Build Tauri Desktop
 
 on:
   workflow_dispatch:
     inputs:
-      ffmpeg-version:
-        description: "FFmpeg release tag (e.g. n7.0.2)"
-        required: false
-        default: "n7.0.2"
-      publish-release:
-        description: "Publish GitHub release?"
+      os:
+        description: Select OS
+        type: choice
+        options:
+          - '[{"platform": "ubuntu-22.04", "args": ""}]'
+          - '[{"platform": "ubuntu-22.04-arm", "args": ""}]'
+          - '[{"platform": "windows-latest", "args": ""}]'
+          - '[{"platform": "macos-latest", "args": "--target aarch64-apple-darwin"}]'
+          - '[{"platform": "macos-13", "args": "--target x86_64-apple-darwin"}]'
+          - '[{"platform": "ubuntu-22.04", "args": ""}, {"platform": "ubuntu-22.04-arm", "args": ""}, {"platform": "macos-latest", "args": "--target aarch64-apple-darwin"}, {"platform": "macos-13", "args": "--target x86_64-apple-darwin"}, {"platform": "windows-latest", "args": ""}]'
+        default: '[{"platform": "ubuntu-22.04", "args": ""}, {"platform": "macos-latest", "args": "--target aarch64-apple-darwin"}, {"platform": "macos-13", "args": "--target x86_64-apple-darwin"}, {"platform": "windows-latest", "args": ""}]'
+        required: true
+      publish_private:
+        description: "Publish release to this repository?"
+        type: boolean
+        default: true
+        required: true
+      publish_public:
+        description: "Publish build artifacts to public repository?"
         type: boolean
         default: false
         required: true
   push:
-    tags:
-      - "ffmpeg-*"
-
-env:
-  FFMPEG_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.ffmpeg-version || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'n7.0.2' }}
-  FFMPEG_SOURCE_URL: https://github.com/FFmpeg/FFmpeg
+    branches:
+      - release
 
 jobs:
-  desktop:
-    name: Build desktop for ${{ matrix.artifact_suffix }}
-    runs-on: ${{ matrix.os }}
+  publish-tauri:
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            artifact_suffix: linux-x86_64
-          - os: macos-13
-            artifact_suffix: macos-x86_64
-            mac_arch: x86_64
-          - os: macos-14
-            artifact_suffix: macos-arm64
-            mac_arch: arm64
-          - os: windows-latest
-            artifact_suffix: windows-x86_64
+        include: ${{ fromJson(inputs.os) }}
+
+    runs-on: ${{ matrix.platform }}
+    env:
+      PUBLISH_PRIVATE: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_private }}
+      PUBLISH_PUBLIC: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_public }}
+      TARGET_PUBLIC_REPO: ${{ vars.PUBLIC_RELEASE_REPO }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Prepare artifact directory (POSIX)
-        if: matrix.os != 'windows-latest'
-        shell: bash
-        run: |
-          set -euo pipefail
-          : "${FFMPEG_VERSION:?FFMPEG_VERSION not set}"
-          mkdir -p "$GITHUB_WORKSPACE/artifacts"
+      - name: install dependencies (ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libwebkit2gtk-4.1-dev gir1.2-javascriptcoregtk-4.1 libgtk-3-dev libunwind-dev libappindicator3-dev librsvg2-dev patchelf alsa-tools libasound2-dev libudev-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-tools gstreamer1.0-x gstreamer1.0-alsa gstreamer1.0-gl gstreamer1.0-gtk3 gstreamer1.0-qt5 gstreamer1.0-pulseaudio
+          version: 1.0
 
-      - name: Prepare artifact directory (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: pwsh
-        run: |
-          if (-not $env:FFMPEG_VERSION) {
-            throw 'FFMPEG_VERSION not set'
-          }
-          $artifactPath = Join-Path $env:GITHUB_WORKSPACE 'artifacts'
-          if (-not (Test-Path $artifactPath)) {
-            New-Item -Path $artifactPath -ItemType Directory | Out-Null
-          }
-
-      - name: Install build dependencies (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
-        shell: bash
+      - name: Install dependencies (ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04-arm'
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            autoconf \
-            automake \
-            build-essential \
-            cmake \
-            git \
-            libtool \
-            pkg-config \
-            texinfo \
-            zlib1g-dev \
-            libssl-dev \
-            nasm \
-            yasm
+          sudo apt-get install -y curl libwebkit2gtk-4.1-dev build-essential libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libfuse2 file gstreamer1.0-pulseaudio libunwind-dev alsa-tools libasound2-dev libudev-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-tools gstreamer1.0-x gstreamer1.0-alsa gstreamer1.0-gl gstreamer1.0-gtk3 gstreamer1.0-qt5 gstreamer1.0-pulseaudio xdg-utils
 
-      - name: Install build dependencies (macOS)
-        if: startsWith(matrix.os, 'macos')
-        shell: bash
+      - name: install dependencies (macos only)
+        if: matrix.platform == 'macos-latest' || matrix.platform == 'macos-13'
         run: |
           brew update
-          brew install automake pkg-config nasm yasm cmake
+          brew upgrade
+          brew install openssl@3
 
-      - name: Set up MSYS2 toolchain (Windows)
-        if: matrix.os == 'windows-latest'
-        uses: msys2/setup-msys2@v2
+      # https://github.com/sfackler/rust-openssl/blob/master/.github/workflows/ci.yml#L94
+      - name: Install vcpkg (Windows only)
+        run: echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
+        if: matrix.platform == 'windows-latest'
+
+      - name: Export GitHub Actions cache environment variables
+        uses: actions/github-script@v7
+        if: matrix.platform == 'windows-latest'
         with:
-          msystem: MINGW64
-          update: true
-          install: >-
-            base-devel
-            git
-            mingw-w64-x86_64-toolchain
-            mingw-w64-x86_64-pkg-config
-            mingw-w64-x86_64-cmake
-            mingw-w64-x86_64-nasm
-            mingw-w64-x86_64-yasm
-            mingw-w64-x86_64-binutils
-            mingw-w64-x86_64-openssl
-            mingw-w64-x86_64-ca-certificates
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
-      - name: Build FFmpeg (Linux / macOS)
-        if: matrix.os != 'windows-latest'
-        shell: bash
+      - name: Install OpenSSL (Windows only)
+        run: vcpkg install openssl:x64-windows-static-md
+        if: matrix.platform == 'windows-latest'
         env:
-          ARTIFACT_SUFFIX: ${{ matrix.artifact_suffix }}
-        run: |
-          set -euxo pipefail
-          cd "$GITHUB_WORKSPACE"
-          curl -L "$FFMPEG_SOURCE_URL/archive/refs/tags/${FFMPEG_VERSION}.tar.gz" -o ffmpeg.tar.gz
-          tar -xf ffmpeg.tar.gz
-          SRC_DIR="FFmpeg-${FFMPEG_VERSION}"
-          if [[ ! -d "$SRC_DIR" ]]; then
-            SRC_DIR=$(tar -tf ffmpeg.tar.gz | head -1 | cut -d/ -f1)
-          fi
-          cd "$SRC_DIR"
+          VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
 
-          PREFIX="$GITHUB_WORKSPACE/build"
-          rm -rf "$PREFIX"
-          mkdir -p "$PREFIX"
-
-          JOBS=$(sysctl -n hw.ncpu 2>/dev/null || nproc)
-
-          CONFIG_ARGS=(
-            --prefix="$PREFIX"
-            --disable-shared
-            --enable-static
-            --enable-gpl
-            --enable-version3
-            --disable-debug
-            --disable-doc
-            --disable-ffplay
-            --disable-ffprobe
-            --enable-demuxer=dash
-            --enable-muxer=dash
-            --enable-protocol=http
-            --enable-protocol=https
-          )
-
-          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            CONFIG_ARGS+=(--enable-pic --enable-openssl)
-          else
-            if [[ "${{ matrix.mac_arch }}" == "x86_64" ]]; then
-              export CFLAGS="-arch x86_64 -mmacosx-version-min=11.0"
-              export LDFLAGS="-arch x86_64 -mmacosx-version-min=11.0"
-              CONFIG_ARGS+=(--arch=x86_64 --target-os=darwin)
-            else
-              export CFLAGS="-arch arm64 -mmacosx-version-min=11.0"
-              export LDFLAGS="-arch arm64 -mmacosx-version-min=11.0"
-              CONFIG_ARGS+=(--arch=arm64 --target-os=darwin)
-            fi
-          fi
-
-          ./configure "${CONFIG_ARGS[@]}"
-          make -j"$JOBS"
-          make install
-
-          PACKAGE_NAME="ffmpeg-${FFMPEG_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
-          cd "$GITHUB_WORKSPACE"
-          mkdir -p artifacts
-          tar -czf "artifacts/$PACKAGE_NAME" -C build .
-
-      - name: Build FFmpeg (Windows)
-        if: matrix.os == 'windows-latest'
-        shell: msys2 {0}
-        env:
-          ARTIFACT_SUFFIX: ${{ matrix.artifact_suffix }}
-        run: |
-          set -euxo pipefail
-          export MINGW_PREFIX=/mingw64
-          export PATH="$MINGW_PREFIX/bin:$PATH"
-          export AR="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-ar"
-          export RANLIB="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-ranlib"
-          export NM="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-nm"
-          export STRIP="$MINGW_PREFIX/bin/strip"
-          for tool in "$AR" "$RANLIB" "$NM" "$STRIP"; do command -v "$tool"; done
-          ln -sf "$AR" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-ar"
-          ln -sf "$RANLIB" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-ranlib"
-          ln -sf "$NM" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-nm"
-          ln -sf "$STRIP" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-strip"
-
-          export PKG_CONFIG_PATH=/mingw64/lib/pkgconfig
-          export PKG_CONFIG=/mingw64/bin/pkg-config
-
-          cd "$GITHUB_WORKSPACE"
-          curl -L "$FFMPEG_SOURCE_URL/archive/refs/tags/${FFMPEG_VERSION}.tar.gz" -o ffmpeg.tar.gz
-          tar -xf ffmpeg.tar.gz
-          SRC_DIR="FFmpeg-${FFMPEG_VERSION}"
-          if [[ ! -d "$SRC_DIR" ]]; then
-            SRC_DIR=$(tar -tf ffmpeg.tar.gz | head -1 | cut -d/ -f1)
-          fi
-          cd "$SRC_DIR"
-
-          PREFIX="$GITHUB_WORKSPACE/build"
-          rm -rf "$PREFIX"
-          mkdir -p "$PREFIX"
-
-          CC="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc"
-          CXX="$MINGW_PREFIX/bin/x86_64-w64-mingw32-g++"
-
-          CC="$CC" CXX="$CXX" LD="$CC" AR="$AR" RANLIB="$RANLIB" NM="$NM" STRIP="$STRIP" PKG_CONFIG="$PKG_CONFIG" \
-          ./configure \
-            --prefix="$PREFIX" \
-            --target-os=mingw32 \
-            --arch=x86_64 \
-            --enable-cross-compile \
-            --cross-prefix=x86_64-w64-mingw32- \
-            --pkg-config=x86_64-w64-mingw32-pkg-config \
-            --pkg-config-flags="--static" \
-            --disable-debug \
-            --disable-doc \
-            --disable-ffplay \
-            --disable-ffprobe \
-            --enable-demuxer=dash \
-            --enable-muxer=dash \
-            --enable-protocol=http \
-            --enable-protocol=https \
-            --enable-openssl \
-            --disable-shared \
-            --enable-static \
-            --enable-gpl \
-            --enable-version3 \
-            --extra-cflags="-static -static-libgcc -static-libstdc++" \
-            --extra-libs="-lssl -lcrypto -lws2_32 -lgdi32 -lz -lcrypt32 -lbcrypt" \
-            --extra-ldflags="-static"
-
-          make -j"$(nproc)"
-          make install
-
-          PACKAGE_NAME="ffmpeg-${FFMPEG_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
-          cd "$GITHUB_WORKSPACE"
-          mkdir -p artifacts
-          tar -czf "artifacts/$PACKAGE_NAME" -C build .
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          name: ffmpeg-${{ env.FFMPEG_VERSION }}-${{ matrix.artifact_suffix }}
-          path: artifacts/ffmpeg-${{ env.FFMPEG_VERSION }}-${{ matrix.artifact_suffix }}.tar.gz
+          node-version: "20"
 
-  release:
-    name: Publish release
-    runs-on: ubuntu-latest
-    needs: desktop
-    permissions:
-      contents: write
-    if: >
-      (github.event_name == 'workflow_dispatch' && inputs.publish-release) ||
-      startsWith(github.ref, 'refs/tags/')
-    steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
         with:
-          path: release-artifacts
-      - name: Prepare release metadata
-        id: meta
+          version: 9
+          run_install: false
+
+      - name: Get pnpm store directory
         shell: bash
         run: |
-          set -euo pipefail
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            TAG_NAME="ffmpeg-${FFMPEG_VERSION}"
-          else
-            TAG_NAME="${GITHUB_REF_NAME}"
-          fi
-          RELEASE_NAME="FFmpeg ${FFMPEG_VERSION}"
-          echo "tag=${TAG_NAME}" >> "$GITHUB_OUTPUT"
-          echo "name=${RELEASE_NAME}" >> "$GITHUB_OUTPUT"
-      - name: Publish GitHub release
-        uses: softprops/action-gh-release@v1
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
         with:
-          tag_name: ${{ steps.meta.outputs.tag }}
-          name: ${{ steps.meta.outputs.name }}
-          draft: false
-          prerelease: false
-          files: release-artifacts/**/*.tar.gz
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Prepare FFmpeg bundle (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: pnpm setup:ffmpeg -- --target windows-x86_64
+
+      - name: Prepare FFmpeg bundle (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        shell: bash
+        run: pnpm setup:ffmpeg -- --target linux-x86_64
+
+      - name: Prepare FFmpeg bundle (macOS arm64)
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        run: pnpm setup:ffmpeg -- --target macos-arm64
+
+      - name: Prepare FFmpeg bundle (macOS x86_64)
+        if: matrix.platform == 'macos-13'
+        shell: bash
+        run: pnpm setup:ffmpeg -- --target macos-x86_64
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin,wasm32-unknown-unknown' || 'wasm32-unknown-unknown' }}
+
+      - name: Install trunk
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: trunk
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          cache-all-crates: true
+          workspaces: |
+            . -> target
+
+      - name: Current PWD
+        run: pwd
+
+      - name: Install tauri CLI
+        run: npm install -g @tauri-apps/cli@latest
+
+      - name: Compute release metadata
+        if: ${{ env.PUBLISH_PRIVATE == 'true' || env.PUBLISH_PUBLIC == 'true' }}
+        id: release_meta
+        shell: bash
+        run: |
+          VERSION=$(node -pe "JSON.parse(require('fs').readFileSync('apps/tauri/src-tauri/tauri.conf.json','utf8')).version")
+          echo "tag=tauri-Music-${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "name=tauri - Music - ${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Build Tauri app (no publish)
+        if: ${{ env.PUBLISH_PRIVATE != 'true' }}
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+        with:
+          args: ${{ matrix.args }}
+          tauriScript: tauri
+          projectPath: "apps/tauri"
+
+      - name: Publish Tauri release
+        if: ${{ env.PUBLISH_PRIVATE == 'true' }}
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+        with:
+          tagName: tauri-Music-__VERSION__
+          releaseName: "tauri - Music - __VERSION__"
+          releaseBody: "See the assets to download this version and install."
+          releaseDraft: true
+          prerelease: true
+          args: ${{ matrix.args }}
+          tauriScript: tauri
+          projectPath: "apps/tauri"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: music-build-${{ matrix.platform }}
+          path: |
+            apps/tauri/src-tauri/target/**/latest.json
+            apps/tauri/src-tauri/target/**/*.rpm
+            apps/tauri/src-tauri/target/**/*.AppImage
+            apps/tauri/src-tauri/target/**/*.AppImage.sig
+            apps/tauri/src-tauri/target/**/*.dmg
+            apps/tauri/src-tauri/target/**/*.deb
+            apps/tauri/src-tauri/target/**/*-setup.exe
+            apps/tauri/src-tauri/target/**/*-setup.exe.sig
+            apps/tauri/src-tauri/target/**/*_en-US.msi
+            apps/tauri/src-tauri/target/**/*_en-US.msi.sig
+            apps/tauri/src-tauri/target/**/*.app.tar.gz
+            apps/tauri/src-tauri/target/**/*.app.tar.gz.sig
+
+      - name: Publish artifacts to public repository
+        if: ${{ env.PUBLISH_PUBLIC == 'true' }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.MUSIC_RELEASES_PAT }}
+          TARGET_REPO: ${{ env.TARGET_PUBLIC_REPO }}
+          RELEASE_TAG: ${{ steps.release_meta.outputs.tag }}
+          RELEASE_NAME: ${{ steps.release_meta.outputs.name }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          if (-not $env:TARGET_REPO) {
+            Write-Warning 'Missing vars.PUBLIC_RELEASE_REPO; skip public repository release.'
+            exit 0
+          }
+
+          if (-not $env:GH_TOKEN) {
+            Write-Error 'Missing secrets.MUSIC_RELEASES_PAT; cannot publish to public repository.'
+          }
+
+          if (-not $env:RELEASE_TAG) {
+            Write-Error 'Missing release tag; cannot publish to public repository.'
+          }
+
+          gh release view $env:RELEASE_TAG --repo $env:TARGET_REPO 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:RELEASE_TAG --repo $env:TARGET_REPO --title $env:RELEASE_NAME --notes 'Build artifacts only, no source code.' --draft --prerelease
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error 'Failed to create release in public repository.'
+            }
+          }
+
+          $patterns = @('latest.json','*.rpm','*.AppImage','*.AppImage.sig','*.dmg','*.deb','*-setup.exe','*-setup.exe.sig','*_en-US.msi','*_en-US.msi.sig','*.app.tar.gz','*.app.tar.gz.sig')
+          $files = @()
+          Get-ChildItem -Path 'apps/tauri/src-tauri/target' -Recurse -File | ForEach-Object {
+            $name = $_.Name
+            foreach ($pattern in $patterns) {
+              if ($name -like $pattern) {
+                $files += $_.FullName
+                break
+              }
+            }
+          }
+
+          $files = $files | Sort-Object -Unique
+          if (-not $files) {
+            Write-Warning 'No build artifacts found; skip public repository release.'
+            exit 0
+          }
+
+          foreach ($file in $files) {
+            gh release upload $env:RELEASE_TAG $file --repo $env:TARGET_REPO --clobber
+          }
+
+
+
+
+
+
