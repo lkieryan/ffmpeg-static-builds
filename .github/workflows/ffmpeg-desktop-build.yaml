@@ -315,8 +315,8 @@ jobs:
           mkdir -p "$PREFIX"
 
           VCPKG_ROOT="$GITHUB_WORKSPACE/vcpkg"
-          INCLUDE_WIN=$(cygpath -w "$VCPKG_ROOT/installed/x64-windows/include")
-          LIB_WIN=$(cygpath -w "$VCPKG_ROOT/installed/x64-windows/lib")
+          INCLUDE_MSYS=$(cygpath -m "$VCPKG_ROOT/installed/x64-windows/include")
+          LIB_MSYS=$(cygpath -m "$VCPKG_ROOT/installed/x64-windows/lib")
           LIB_POSIX=$(cygpath "$VCPKG_ROOT/installed/x64-windows/lib")
 
           ./configure \
@@ -335,8 +335,8 @@ jobs:
             --enable-openssl \
             --enable-zlib \
             --enable-nonfree \
-            --extra-cflags="-I$INCLUDE_WIN" \
-            --extra-ldflags="-LIBPATH:$LIB_WIN" \
+            --extra-cflags="-I$INCLUDE_MSYS" \
+            --extra-ldflags="-LIBPATH:$LIB_MSYS" \
             --extra-libs="libssl.lib libcrypto.lib zlib.lib ws2_32.lib bcrypt.lib crypt32.lib"
 
           nmake
