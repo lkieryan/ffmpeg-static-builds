@@ -72,7 +72,7 @@ jobs:
             pkg-config \
             texinfo \
             zlib1g-dev \
-            libssl-dev \\
+            libssl-dev \
             nasm \
             yasm
 
@@ -115,6 +115,8 @@ jobs:
             SRC_DIR=$(tar -tf ffmpeg.tar.gz | head -1 | cut -d/ -f1)
           fi
           cd "$SRC_DIR"
+          PREFIX="$GITHUB_WORKSPACE/build"
+          rm -rf "$PREFIX"
           mkdir -p "$PREFIX"
 
           JOBS=$(sysctl -n hw.ncpu 2>/dev/null || nproc)
