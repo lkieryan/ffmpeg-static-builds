@@ -7,6 +7,11 @@ on:
         description: "FFmpeg release tag (e.g. n7.0.2)"
         required: false
         default: "n7.0.2"
+      publish-release:
+        description: "Publish GitHub release?"
+        type: boolean
+        default: false
+        required: true
   push:
     tags:
       - "ffmpeg-*"
@@ -239,3 +244,41 @@ jobs:
         with:
           name: ffmpeg-${{ env.FFMPEG_VERSION }}-${{ matrix.artifact_suffix }}
           path: artifacts/ffmpeg-${{ env.FFMPEG_VERSION }}-${{ matrix.artifact_suffix }}.tar.gz
+
+  release:
+    name: Publish release
+    runs-on: ubuntu-latest
+    needs: desktop
+    permissions:
+      contents: write
+    if: >
+      (github.event_name == 'workflow_dispatch' && inputs.publish-release) ||
+      startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+      - name: Prepare release metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            TAG_NAME="ffmpeg-${FFMPEG_VERSION}"
+          else
+            TAG_NAME="${GITHUB_REF_NAME}"
+          fi
+          RELEASE_NAME="FFmpeg ${FFMPEG_VERSION}"
+          echo "tag=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "name=${RELEASE_NAME}" >> "$GITHUB_OUTPUT"
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.name }}
+          draft: false
+          prerelease: false
+          files: release-artifacts/**/*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
