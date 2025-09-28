@@ -173,7 +173,7 @@ jobs:
           export AR="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-ar"
           export RANLIB="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-ranlib"
           export NM="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-nm"
-          export STRIP="$MINGW_PREFIX/bin/x86_64-w64-mingw32-strip"
+          export STRIP="$MINGW_PREFIX/bin/strip"
           command -v "$AR"
           command -v "$RANLIB"
           command -v "$NM"
@@ -193,15 +193,12 @@ jobs:
           rm -rf "$PREFIX"
           mkdir -p "$PREFIX"
 
+          CC="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc"
+          CXX="$MINGW_PREFIX/bin/x86_64-w64-mingw32-g++"
+
+          CC="$CC" CXX="$CXX" LD="$CC" AR="$AR" RANLIB="$RANLIB" NM="$NM" STRIP="$STRIP" PKG_CONFIG="$PKG_CONFIG" \
           ./configure \
-            --cc="/bin/x86_64-w64-mingw32-gcc" \
-            --cxx="/bin/x86_64-w64-mingw32-g++" \
-            --ld="/bin/x86_64-w64-mingw32-gcc" \
-            --ar="" \
-            --ranlib="" \
-            --nm="" \
-            --strip="" \
-            --prefix="" \
+            --prefix="$PREFIX" \
             --target-os=mingw32 \
             --arch=x86_64 \
             --enable-cross-compile \
@@ -224,15 +221,15 @@ jobs:
             --extra-cflags="-static -static-libgcc -static-libstdc++" \
             --extra-libs="-lssl -lcrypto -lws2_32 -lgdi32 -lz -lcrypt32 -lbcrypt" \
             --extra-ldflags="-static"
+
           make -j"$(nproc)"
           make install
 
           cd "$PREFIX"
           PACKAGE_NAME="ffmpeg-${FFMPEG_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
-          tar -czf "$GITHUB_WORKSPACE/artifacts/$PACKAGE_NAME" .
-
-      - name: 上传构建产物
+          tar -czf "$GITHUB_WORKSPACE/artifacts/$PACKAGE_NAME" .      - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-${{ env.FFMPEG_VERSION }}-${{ matrix.artifact_suffix }}
           path: artifacts/ffmpeg-${{ env.FFMPEG_VERSION }}-${{ matrix.artifact_suffix }}.tar.gz
+
