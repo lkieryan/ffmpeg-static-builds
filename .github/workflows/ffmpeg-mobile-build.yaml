@@ -1,0 +1,252 @@
+name: Build FFmpeg Mobile
+
+on:
+  workflow_dispatch:
+    inputs:
+      ffmpeg-version:
+        description: "FFmpeg 发布标签（例如 n7.0.2）"
+        required: false
+        default: "n7.0.2"
+  push:
+    tags:
+      - "ffmpeg-mobile-*"
+
+env:
+  FFMPEG_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.ffmpeg-version || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'n7.0.2' }}
+  FFMPEG_SOURCE_URL: https://github.com/FFmpeg/FFmpeg
+
+jobs:
+  android:
+    name: Build Android for ${{ matrix.artifact_suffix }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            api_level: 24
+            artifact_suffix: android-arm64-v8a
+          - arch: armv7
+            api_level: 21
+            artifact_suffix: android-armeabi-v7a
+          - arch: x86_64
+            api_level: 24
+            artifact_suffix: android-x86_64
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare artifact directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${FFMPEG_VERSION:?FFMPEG_VERSION 未设置}"
+          mkdir -p "$GITHUB_WORKSPACE/artifacts"
+
+      - name: Set up Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26d
+
+      - name: Build FFmpeg (Android)
+        shell: bash
+        env:
+          ARTIFACT_SUFFIX: ${{ matrix.artifact_suffix }}
+          ARCH: ${{ matrix.arch }}
+          API_LEVEL: ${{ matrix.api_level }}
+        run: |
+          set -euxo pipefail
+          cd "$GITHUB_WORKSPACE"
+          curl -L "$FFMPEG_SOURCE_URL/archive/refs/tags/${FFMPEG_VERSION}.tar.gz" -o ffmpeg.tar.gz
+          tar -xf ffmpeg.tar.gz
+          SRC_DIR="FFmpeg-${FFMPEG_VERSION}"
+          if [[ ! -d "$SRC_DIR" ]]; then
+            SRC_DIR=$(tar -tf ffmpeg.tar.gz | head -1 | cut -d/ -f1)
+          fi
+          cd "$SRC_DIR"
+
+          PREFIX="$GITHUB_WORKSPACE/build"
+          rm -rf "$PREFIX"
+          mkdir -p "$PREFIX"
+
+          NDK_ROOT=${ANDROID_NDK_HOME:-${ANDROID_NDK_LATEST_HOME}}
+          TOOLCHAIN="$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64"
+
+          EXTRA_CFLAGS=""
+          EXTRA_LDFLAGS=""
+
+          case "$ARCH" in
+            arm64)
+              TARGET=aarch64-linux-android
+              FF_ARCH=aarch64
+              CPU=armv8-a
+              ;;
+            armv7)
+              TARGET=armv7a-linux-androideabi
+              FF_ARCH=armv7
+              CPU=armv7-a
+              EXTRA_CFLAGS="-mfpu=neon"
+              ;;
+            x86_64)
+              TARGET=x86_64-linux-android
+              FF_ARCH=x86_64
+              CPU=x86_64
+              ;;
+            *)
+              echo "Unsupported arch $ARCH" >&2
+              exit 1
+              ;;
+          esac
+
+          CC="$TOOLCHAIN/bin/${TARGET}${API_LEVEL}-clang"
+          CXX="$TOOLCHAIN/bin/${TARGET}${API_LEVEL}-clang++"
+
+          EXTRA_CFLAGS="$EXTRA_CFLAGS -fPIC"
+          EXTRA_LDFLAGS="-fPIC"
+
+          ./configure \
+            --prefix="$PREFIX" \
+            --target-os=android \
+            --arch="$FF_ARCH" \
+            --cpu="$CPU" \
+            --enable-cross-compile \
+            --cc="$CC" \
+            --cxx="$CXX" \
+            --ld="$CC" \
+            --ar="$TOOLCHAIN/bin/llvm-ar" \
+            --ranlib="$TOOLCHAIN/bin/llvm-ranlib" \
+            --strip="$TOOLCHAIN/bin/llvm-strip" \
+            --pkg-config="pkg-config" \
+            --disable-programs \
+            --disable-debug \
+            --disable-doc \
+            --disable-ffplay \
+            --disable-ffprobe \
+            --disable-avdevice \
+            --disable-shared \
+            --enable-static \
+            --enable-gpl \
+            --enable-version3 \
+            --enable-demuxer=dash \
+            --enable-muxer=dash \
+            --enable-protocol=http \
+            --extra-cflags="$EXTRA_CFLAGS" \
+            --extra-ldflags="$EXTRA_LDFLAGS"
+
+          make -j"$(nproc)"
+          make install
+
+          cd "$PREFIX"
+          PACKAGE_NAME="ffmpeg-${FFMPEG_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
+          tar -czf "$GITHUB_WORKSPACE/artifacts/$PACKAGE_NAME" .
+
+      - name: 上传构建产物 (Android)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-${{ env.FFMPEG_VERSION }}-${{ matrix.artifact_suffix }}
+          path: artifacts/ffmpeg-${{ env.FFMPEG_VERSION }}-${{ matrix.artifact_suffix }}.tar.gz
+
+  ios:
+    name: Build iOS for ${{ matrix.artifact_suffix }}
+    runs-on: macos-14
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - sdk: iphoneos
+            arch: arm64
+            min_version: "13.0"
+            artifact_suffix: ios-arm64
+          - sdk: iphonesimulator
+            arch: arm64
+            min_version: "13.0"
+            artifact_suffix: ios-simulator-arm64
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare artifact directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${FFMPEG_VERSION:?FFMPEG_VERSION 未设置}"
+          mkdir -p "$GITHUB_WORKSPACE/artifacts"
+
+      - name: Build FFmpeg (iOS)
+        shell: bash
+        env:
+          ARTIFACT_SUFFIX: ${{ matrix.artifact_suffix }}
+          IOS_SDK: ${{ matrix.sdk }}
+          IOS_ARCH: ${{ matrix.arch }}
+          MIN_VERSION: ${{ matrix.min_version }}
+        run: |
+          set -euxo pipefail
+          cd "$GITHUB_WORKSPACE"
+          curl -L "$FFMPEG_SOURCE_URL/archive/refs/tags/${FFMPEG_VERSION}.tar.gz" -o ffmpeg.tar.gz
+          tar -xf ffmpeg.tar.gz
+          SRC_DIR="FFmpeg-${FFMPEG_VERSION}"
+          if [[ ! -d "$SRC_DIR" ]]; then
+            SRC_DIR=$(tar -tf ffmpeg.tar.gz | head -1 | cut -d/ -f1)
+          fi
+          cd "$SRC_DIR"
+
+          PREFIX="$GITHUB_WORKSPACE/build"
+          rm -rf "$PREFIX"
+          mkdir -p "$PREFIX"
+
+          SDK_PATH=$(xcrun --sdk "$IOS_SDK" --show-sdk-path)
+          CC="$(xcrun --sdk "$IOS_SDK" --find clang)"
+          CXX="$(xcrun --sdk "$IOS_SDK" --find clang++)"
+          AR="$(xcrun --sdk "$IOS_SDK" --find ar)"
+          RANLIB="$(xcrun --sdk "$IOS_SDK" --find ranlib)"
+          STRIP="$(xcrun --sdk "$IOS_SDK" --find strip)"
+
+          if [[ "$IOS_SDK" == "iphoneos" ]]; then
+            MIN_FLAG="-miphoneos-version-min=$MIN_VERSION"
+          else
+            MIN_FLAG="-mios-simulator-version-min=$MIN_VERSION"
+          fi
+
+          EXTRA_CFLAGS="-arch $IOS_ARCH -fembed-bitcode $MIN_FLAG"
+          EXTRA_LDFLAGS="-arch $IOS_ARCH $MIN_FLAG"
+
+          ./configure \
+            --prefix="$PREFIX" \
+            --target-os=darwin \
+            --arch="$IOS_ARCH" \
+            --enable-cross-compile \
+            --cc="$CC" \
+            --cxx="$CXX" \
+            --ld="$CC" \
+            --ar="$AR" \
+            --ranlib="$RANLIB" \
+            --strip="$STRIP" \
+            --sysroot="$SDK_PATH" \
+            --disable-programs \
+            --disable-debug \
+            --disable-doc \
+            --disable-ffplay \
+            --disable-ffprobe \
+            --disable-avdevice \
+            --disable-shared \
+            --enable-static \
+            --enable-gpl \
+            --enable-version3 \
+            --enable-demuxer=dash \
+            --enable-muxer=dash \
+            --enable-protocol=http \
+            --extra-cflags="$EXTRA_CFLAGS" \
+            --extra-ldflags="$EXTRA_LDFLAGS"
+
+          make -j"$(sysctl -n hw.ncpu)"
+          make install
+
+          cd "$PREFIX"
+          PACKAGE_NAME="ffmpeg-${FFMPEG_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
+          tar -czf "$GITHUB_WORKSPACE/artifacts/$PACKAGE_NAME" .
+
+      - name: 上传构建产物 (iOS)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-${{ env.FFMPEG_VERSION }}-${{ matrix.artifact_suffix }}
+          path: artifacts/ffmpeg-${{ env.FFMPEG_VERSION }}-${{ matrix.artifact_suffix }}.tar.gz
