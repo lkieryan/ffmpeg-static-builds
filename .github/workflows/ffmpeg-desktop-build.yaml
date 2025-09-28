@@ -97,6 +97,7 @@ jobs:
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-nasm
             mingw-w64-x86_64-yasm
+            mingw-w64-x86_64-binutils
             mingw-w64-x86_64-openssl
             mingw-w64-x86_64-ca-certificates
 
@@ -167,6 +168,9 @@ jobs:
           ARTIFACT_SUFFIX: ${{ matrix.artifact_suffix }}
         run: |
           set -euxo pipefail
+          export MINGW_PREFIX=/mingw64
+          export PATH="$MINGW_PREFIX/bin:$PATH"
+          which x86_64-w64-mingw32-ar
           export PKG_CONFIG_PATH=/mingw64/lib/pkgconfig
           export PKG_CONFIG=/mingw64/bin/pkg-config
           cd "$GITHUB_WORKSPACE"
