@@ -71,6 +71,7 @@ jobs:
 
           NDK_ROOT=${ANDROID_NDK_HOME:-${ANDROID_NDK_LATEST_HOME}}
           TOOLCHAIN="$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64"
+          SYSROOT="$TOOLCHAIN/sysroot"
 
           EXTRA_CFLAGS=""
           EXTRA_LDFLAGS=""
@@ -104,35 +105,42 @@ jobs:
           EXTRA_CFLAGS="$EXTRA_CFLAGS -fPIC"
           EXTRA_LDFLAGS="-fPIC"
 
-          ./configure \
-            --prefix="$PREFIX" \
-            --target-os=android \
-            --arch="$FF_ARCH" \
-            --cpu="$CPU" \
-            --enable-cross-compile \
-            --cc="$CC" \
-            --cxx="$CXX" \
-            --ld="$CC" \
-            --ar="$TOOLCHAIN/bin/llvm-ar" \
-            --ranlib="$TOOLCHAIN/bin/llvm-ranlib" \
-            --strip="$TOOLCHAIN/bin/llvm-strip" \
-            --pkg-config="pkg-config" \
-            --disable-programs \
-            --disable-debug \
-            --disable-doc \
-            --disable-ffplay \
-            --disable-ffprobe \
-            --disable-avdevice \
-            --disable-shared \
-            --enable-static \
-            --enable-gpl \
-            --enable-version3 \
-            --enable-demuxer=dash \
-            --enable-muxer=dash \
-            --enable-protocol=http \
-            --extra-cflags="$EXTRA_CFLAGS" \
+          CONFIGURE_FLAGS=(
+            --prefix="$PREFIX"
+            --target-os=android
+            --arch="$FF_ARCH"
+            --cpu="$CPU"
+            --enable-cross-compile
+            --cc="$CC"
+            --cxx="$CXX"
+            --ld="$CC"
+            --ar="$TOOLCHAIN/bin/llvm-ar"
+            --ranlib="$TOOLCHAIN/bin/llvm-ranlib"
+            --strip="$TOOLCHAIN/bin/llvm-strip"
+            --nm="$TOOLCHAIN/bin/llvm-nm"
+            --cross-prefix="$TOOLCHAIN/bin/${TARGET}-"
+            --sysroot="$SYSROOT"
+            --pkg-config="pkg-config"
+            --disable-programs
+            --disable-debug
+            --disable-doc
+            --disable-ffplay
+            --disable-ffprobe
+            --disable-avdevice
+            --disable-shared
+            --enable-static
+            --enable-gpl
+            --enable-version3
+            --enable-demuxer=dash
+            --enable-muxer=dash
+            --enable-protocol=http
+            --extra-cflags="$EXTRA_CFLAGS"
             --extra-ldflags="$EXTRA_LDFLAGS"
-
+          )
+          if ! ./configure "${CONFIGURE_FLAGS[@]}"; then
+            cat ffbuild/config.log
+            exit 1
+          fi
           make -j"$(nproc)"
           make install
 
