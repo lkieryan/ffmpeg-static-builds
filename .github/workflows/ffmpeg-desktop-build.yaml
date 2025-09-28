@@ -339,9 +339,7 @@ jobs:
             --enable-nonfree \
             --extra-cflags="-I$INCLUDE_MSYS" \
             --extra-ldflags="-LIBPATH:$LIB_MSYS" \
-            --openssl-includes="$INCLUDE_MSYS" \
-            --openssl-libs="libssl.lib libcrypto.lib ws2_32.lib bcrypt.lib crypt32.lib" \
-            --extra-libs="zlib.lib"
+            --extra-libs="libssl.lib libcrypto.lib zlib.lib ws2_32.lib bcrypt.lib crypt32.lib"
 
           nmake
           nmake install
@@ -365,6 +363,8 @@ jobs:
           $cmdWrapper = @"
           @echo off
           call "$vcvars"
+          set "INCLUDE=%INCLUDE%;$VCPKG_ROOT\installed\x64-windows\include"
+          set "LIB=%LIB%;$VCPKG_ROOT\installed\x64-windows\lib"
           "$bash" --noprofile --norc "$scriptPath"
           "@
           $cmdWrapperPath = Join-Path $env:GITHUB_WORKSPACE 'msvc-wrapper.cmd'
