@@ -276,64 +276,66 @@ jobs:
           }
 
           $scriptPath = Join-Path $env:GITHUB_WORKSPACE 'msvc-build.sh'
-          @'
-set -euxo pipefail
+          $scriptContent = @'
+          set -euxo pipefail
 
-WORKSPACE=$(cygpath "$GITHUB_WORKSPACE")
-cd "$WORKSPACE"
+          WORKSPACE=$(cygpath "$GITHUB_WORKSPACE")
+          cd "$WORKSPACE"
 
-curl -L "$FFMPEG_SOURCE_URL/archive/refs/tags/${FFMPEG_VERSION}.tar.gz" -o ffmpeg.tar.gz
-tar -xf ffmpeg.tar.gz
-SRC_DIR="FFmpeg-${FFMPEG_VERSION}"
-if [ ! -d "$SRC_DIR" ]; then
-  SRC_DIR=$(tar -tf ffmpeg.tar.gz | head -1 | cut -d/ -f1)
-fi
-cd "$SRC_DIR"
+          curl -L "$FFMPEG_SOURCE_URL/archive/refs/tags/${FFMPEG_VERSION}.tar.gz" -o ffmpeg.tar.gz
+          tar -xf ffmpeg.tar.gz
+          SRC_DIR="FFmpeg-${FFMPEG_VERSION}"
+          if [ ! -d "$SRC_DIR" ]; then
+            SRC_DIR=$(tar -tf ffmpeg.tar.gz | head -1 | cut -d/ -f1)
+          fi
+          cd "$SRC_DIR"
 
-PREFIX="$WORKSPACE/build"
-rm -rf "$PREFIX"
-mkdir -p "$PREFIX"
+          PREFIX="$WORKSPACE/build"
+          rm -rf "$PREFIX"
+          mkdir -p "$PREFIX"
 
-VCPKG_ROOT="$GITHUB_WORKSPACE/vcpkg"
-INCLUDE_WIN=$(cygpath -w "$VCPKG_ROOT/installed/x64-windows/include")
-LIB_WIN=$(cygpath -w "$VCPKG_ROOT/installed/x64-windows/lib")
-LIB_POSIX=$(cygpath "$VCPKG_ROOT/installed/x64-windows/lib")
+          VCPKG_ROOT="$GITHUB_WORKSPACE/vcpkg"
+          INCLUDE_WIN=$(cygpath -w "$VCPKG_ROOT/installed/x64-windows/include")
+          LIB_WIN=$(cygpath -w "$VCPKG_ROOT/installed/x64-windows/lib")
+          LIB_POSIX=$(cygpath "$VCPKG_ROOT/installed/x64-windows/lib")
 
-./configure \
-  --toolchain=msvc \
-  --arch=x86_64 \
-  --target-os=win64 \
-  --prefix="$PREFIX" \
-  --enable-static \
-  --disable-shared \
-  --disable-doc \
-  --disable-ffplay \
-  --disable-ffprobe \
-  --disable-ffmpeg \
-  --enable-gpl \
-  --enable-version3 \
-  --enable-openssl \
-  --enable-zlib \
-  --extra-cflags="-I$INCLUDE_WIN" \
-  --extra-ldflags="-LIBPATH:$LIB_WIN" \
-  --extra-libs="libssl.lib libcrypto.lib zlib.lib ws2_32.lib bcrypt.lib crypt32.lib"
+          ./configure \
+            --toolchain=msvc \
+            --arch=x86_64 \
+            --target-os=win64 \
+            --prefix="$PREFIX" \
+            --enable-static \
+            --disable-shared \
+            --disable-doc \
+            --disable-ffplay \
+            --disable-ffprobe \
+            --disable-ffmpeg \
+            --enable-gpl \
+            --enable-version3 \
+            --enable-openssl \
+            --enable-zlib \
+            --extra-cflags="-I$INCLUDE_WIN" \
+            --extra-ldflags="-LIBPATH:$LIB_WIN" \
+            --extra-libs="libssl.lib libcrypto.lib zlib.lib ws2_32.lib bcrypt.lib crypt32.lib"
 
-nmake
-nmake install
+          nmake
+          nmake install
 
-cp "$LIB_POSIX/libssl.lib" "$PREFIX/lib/"
-cp "$LIB_POSIX/libcrypto.lib" "$PREFIX/lib/"
-if [ -f "$LIB_POSIX/zlib.lib" ]; then
-  cp "$LIB_POSIX/zlib.lib" "$PREFIX/lib/"
-  cp "$LIB_POSIX/zlib.lib" "$PREFIX/lib/z.lib"
-fi
+          cp "$LIB_POSIX/libssl.lib" "$PREFIX/lib/"
+          cp "$LIB_POSIX/libcrypto.lib" "$PREFIX/lib/"
+          if [ -f "$LIB_POSIX/zlib.lib" ]; then
+            cp "$LIB_POSIX/zlib.lib" "$PREFIX/lib/"
+            cp "$LIB_POSIX/zlib.lib" "$PREFIX/lib/z.lib"
+          fi
 
-PACKAGE_NAME="ffmpeg-${FFMPEG_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
-cd "$WORKSPACE"
-mkdir -p artifacts
-tar -czf "artifacts/$PACKAGE_NAME" -C build .
+          PACKAGE_NAME="ffmpeg-${FFMPEG_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
+          cd "$WORKSPACE"
+          mkdir -p artifacts
+          tar -czf "artifacts/$PACKAGE_NAME" -C build .
 
-'@ | Set-Content -Path $scriptPath -Encoding utf8NoBOM
+          '@
+          $scriptContent = [regex]::Replace($scriptContent, '^(          )', '', [System.Text.RegularExpressions.RegexOptions]::Multiline)
+          $scriptContent | Set-Content -Path $scriptPath -Encoding utf8NoBOM
 
           & cmd.exe /c ""$vcvars" && "$bash" --noprofile --norc "$scriptPath""
 
