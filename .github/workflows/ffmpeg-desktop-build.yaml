@@ -173,8 +173,11 @@ jobs:
           export AR="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-ar"
           export RANLIB="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-ranlib"
           export NM="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-nm"
+          export STRIP="$MINGW_PREFIX/bin/x86_64-w64-mingw32-strip"
           command -v "$AR"
           command -v "$RANLIB"
+          command -v "$NM"
+          command -v "$STRIP"
           export PKG_CONFIG_PATH=/mingw64/lib/pkgconfig
           export PKG_CONFIG=/mingw64/bin/pkg-config
           cd "$GITHUB_WORKSPACE"
@@ -191,13 +194,14 @@ jobs:
           mkdir -p "$PREFIX"
 
           ./configure \
-            --cc="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc" \
-            --cxx="$MINGW_PREFIX/bin/x86_64-w64-mingw32-g++" \
-            --ld="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc" \
-            --ar="$AR" \
-            --ranlib="$RANLIB" \
-            --nm="$NM" \
-            --prefix="$PREFIX" \
+            --cc="/bin/x86_64-w64-mingw32-gcc" \
+            --cxx="/bin/x86_64-w64-mingw32-g++" \
+            --ld="/bin/x86_64-w64-mingw32-gcc" \
+            --ar="" \
+            --ranlib="" \
+            --nm="" \
+            --strip="" \
+            --prefix="" \
             --target-os=mingw32 \
             --arch=x86_64 \
             --enable-cross-compile \
@@ -220,7 +224,6 @@ jobs:
             --extra-cflags="-static -static-libgcc -static-libstdc++" \
             --extra-libs="-lssl -lcrypto -lws2_32 -lgdi32 -lz -lcrypt32 -lbcrypt" \
             --extra-ldflags="-static"
-
           make -j"$(nproc)"
           make install
 
