@@ -377,8 +377,9 @@ jobs:
           $cmdWrapper = @"
           @echo off
           call "$vcvars"
-          set "INCLUDE=%INCLUDE%;$VCPKG_ROOT\installed\x64-windows\include"
-          set "LIB=%LIB%;$VCPKG_ROOT\installed\x64-windows\lib"
+          set "VCPKG_ROOT=%GITHUB_WORKSPACE%\vcpkg"
+          set "INCLUDE=%INCLUDE%;%VCPKG_ROOT%\installed\x64-windows\include"
+          set "LIB=%LIB%;%VCPKG_ROOT%\installed\x64-windows\lib"
           "$bash" --noprofile --norc "$scriptPath"
           "@
           $cmdWrapperPath = Join-Path $env:GITHUB_WORKSPACE 'msvc-wrapper.cmd'
