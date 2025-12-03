@@ -114,7 +114,7 @@ jobs:
         if: matrix.os == 'windows-latest' && matrix.windows_toolchain == 'msvc'
         shell: pwsh
         run: |
-          choco install -y nasm yasm ninja --no-progress
+          choco install -y nasm yasm ninja make --no-progress
           if (-not (Test-Path "$env:GITHUB_WORKSPACE\\vcpkg")) {
             git clone https://github.com/microsoft/vcpkg "$env:GITHUB_WORKSPACE\\vcpkg"
           }
@@ -357,8 +357,8 @@ jobs:
               --extra-cflags="-I$INCLUDE_MSYS" \
               --extra-ldflags="-LIBPATH:$LIB_MSYS"
 
-            nmake
-            nmake install
+            make
+            make install
 
             if [ -f "$LIB_POSIX/zlib.lib" ]; then
               cp "$LIB_POSIX/zlib.lib" "$PREFIX/lib/"
