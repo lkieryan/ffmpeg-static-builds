@@ -296,86 +296,79 @@ jobs:
           }
 
           $scriptPath = Join-Path $env:GITHUB_WORKSPACE 'msvc-build.sh'
-          $scriptContent = @'
-          set -euxo pipefail
+            $scriptContent = @'
+            set -euxo pipefail
 
-          WORKSPACE=$(cygpath "$GITHUB_WORKSPACE")
-          cd "$WORKSPACE"
+            WORKSPACE=$(cygpath "$GITHUB_WORKSPACE")
+            cd "$WORKSPACE"
 
-          curl -L "$FFMPEG_SOURCE_URL/archive/refs/tags/${FFMPEG_VERSION}.tar.gz" -o ffmpeg.tar.gz
-          tar -xf ffmpeg.tar.gz
-          SRC_DIR="FFmpeg-${FFMPEG_VERSION}"
-          if [ ! -d "$SRC_DIR" ]; then
-            SRC_DIR=$(tar -tf ffmpeg.tar.gz | head -1 | cut -d/ -f1)
-          fi
-          cd "$SRC_DIR"
+            curl -L "$FFMPEG_SOURCE_URL/archive/refs/tags/${FFMPEG_VERSION}.tar.gz" -o ffmpeg.tar.gz
+            tar -xf ffmpeg.tar.gz
+            SRC_DIR="FFmpeg-${FFMPEG_VERSION}"
+            if [ ! -d "$SRC_DIR" ]; then
+              SRC_DIR=$(tar -tf ffmpeg.tar.gz | head -1 | cut -d/ -f1)
+            fi
+            cd "$SRC_DIR"
 
-          PREFIX="$WORKSPACE/build"
-          rm -rf "$PREFIX"
-          mkdir -p "$PREFIX"
+            PREFIX="$WORKSPACE/build"
+            rm -rf "$PREFIX"
+            mkdir -p "$PREFIX"
 
-          VCPKG_ROOT="$GITHUB_WORKSPACE/vcpkg"
-          TRIPLET_STATIC="x64-windows-static"
-          TRIPLET_DYNAMIC="x64-windows"
-          INCLUDE_MSYS=$(cygpath -m "$VCPKG_ROOT/installed/$TRIPLET_STATIC/include")
-          LIB_MSYS=$(cygpath -m "$VCPKG_ROOT/installed/$TRIPLET_STATIC/lib")
-          LIB_POSIX=$(cygpath "$VCPKG_ROOT/installed/$TRIPLET_STATIC/lib")
-          PKGCONF_DIR=$(cygpath "$VCPKG_ROOT/installed/$TRIPLET_DYNAMIC/tools/pkgconf")
-          PKGCONF_BIN="$PKGCONF_DIR/pkgconf.exe"
-          if [ ! -x "$PKGCONF_BIN" ]; then
-            echo "pkgconf not found at $PKGCONF_BIN" >&2
-            exit 1
-          fi
-          export PKG_CONFIG="$PKGCONF_BIN --msvc-syntax"
-          export PKG_CONFIG_PATH=$(cygpath -m "$VCPKG_ROOT/installed/$TRIPLET_STATIC/lib/pkgconfig")
-          export PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH"
-          export PKG_CONFIG_SYSTEM_LIBRARY_PATH=$(cygpath -m "$VCPKG_ROOT/installed/$TRIPLET_STATIC/lib")
-          export PKG_CONFIG_SYSTEM_INCLUDE_PATH=$(cygpath -m "$VCPKG_ROOT/installed/$TRIPLET_STATIC/include")
-          export OPENSSL_CFLAGS="-I$INCLUDE_MSYS"
-          export OPENSSL_LIBS="libssl.lib libcrypto.lib ws2_32.lib bcrypt.lib crypt32.lib"
-          export PATH="$PATH:$(cygpath "$VCPKG_ROOT/installed/$TRIPLET_DYNAMIC/bin"):$PKGCONF_DIR"
-          if [ -d "$(cygpath "$VCPKG_ROOT/installed/$TRIPLET_STATIC/bin")" ]; then
-            export PATH="$PATH:$(cygpath "$VCPKG_ROOT/installed/$TRIPLET_STATIC/bin")"
-          fi
-          echo "Using OpenSSL LIBS: $("$PKGCONF_BIN" --msvc-syntax --libs openssl)"
-          echo "Resolved OpenSSL include dir: $INCLUDE_MSYS"
-          echo "Resolved OpenSSL lib dir: $LIB_MSYS"
+            VCPKG_ROOT="$GITHUB_WORKSPACE/vcpkg"
+            TRIPLET_STATIC="x64-windows-static"
+            TRIPLET_DYNAMIC="x64-windows"
+            INCLUDE_MSYS=$(cygpath -m "$VCPKG_ROOT/installed/$TRIPLET_STATIC/include")
+            LIB_MSYS=$(cygpath -m "$VCPKG_ROOT/installed/$TRIPLET_STATIC/lib")
+            LIB_POSIX=$(cygpath "$VCPKG_ROOT/installed/$TRIPLET_STATIC/lib")
+            PKGCONF_DIR=$(cygpath "$VCPKG_ROOT/installed/$TRIPLET_DYNAMIC/tools/pkgconf")
+            PKGCONF_BIN="$PKGCONF_DIR/pkgconf.exe"
+            if [ ! -x "$PKGCONF_BIN" ]; then
+              echo "pkgconf not found at $PKGCONF_BIN" >&2
+              exit 1
+            fi
+            export PKG_CONFIG="$PKGCONF_BIN --msvc-syntax"
+            export PKG_CONFIG_PATH=$(cygpath -m "$VCPKG_ROOT/installed/$TRIPLET_STATIC/lib/pkgconfig")
+            export PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH"
+            export PKG_CONFIG_SYSTEM_LIBRARY_PATH=$(cygpath -m "$VCPKG_ROOT/installed/$TRIPLET_STATIC/lib")
+            export PKG_CONFIG_SYSTEM_INCLUDE_PATH=$(cygpath -m "$VCPKG_ROOT/installed/$TRIPLET_STATIC/include")
+            export PATH="$PATH:$(cygpath "$VCPKG_ROOT/installed/$TRIPLET_DYNAMIC/bin"):$PKGCONF_DIR"
+            if [ -d "$(cygpath "$VCPKG_ROOT/installed/$TRIPLET_STATIC/bin")" ]; then
+              export PATH="$PATH:$(cygpath "$VCPKG_ROOT/installed/$TRIPLET_STATIC/bin")"
+            fi
+            echo "Resolved zlib include dir: $INCLUDE_MSYS"
+            echo "Resolved zlib lib dir: $LIB_MSYS"
 
-          ./configure \
-            --toolchain=msvc \
-            --arch=x86_64 \
-            --target-os=win64 \
-            --prefix="$PREFIX" \
-            --enable-static \
-            --disable-shared \
-            --disable-doc \
-            --disable-ffplay \
-            --disable-ffprobe \
-            --disable-ffmpeg \
-            --enable-gpl \
-            --enable-version3 \
-            --enable-openssl \
-            --enable-zlib \
-            --enable-nonfree \
-            --extra-cflags="-I$INCLUDE_MSYS" \
-            --extra-ldflags="-LIBPATH:$LIB_MSYS" \
-            --extra-libs="libssl.lib libcrypto.lib zlib.lib ws2_32.lib bcrypt.lib crypt32.lib" \
-            --extra-ldflags="$("$PKGCONF_BIN" --msvc-syntax --libs-only-L openssl)"
+            ./configure \
+              --toolchain=msvc \
+              --arch=x86_64 \
+              --target-os=win64 \
+              --prefix="$PREFIX" \
+              --enable-static \
+              --disable-shared \
+              --disable-doc \
+              --disable-ffplay \
+              --disable-ffprobe \
+              --disable-ffmpeg \
+              --enable-gpl \
+              --enable-version3 \
+              --enable-schannel \
+              --enable-zlib \
+              --enable-nonfree \
+              --extra-cflags="-I$INCLUDE_MSYS" \
+              --extra-ldflags="-LIBPATH:$LIB_MSYS"
 
-          nmake
-          nmake install
+            nmake
+            nmake install
 
-          cp "$LIB_POSIX/libssl.lib" "$PREFIX/lib/"
-          cp "$LIB_POSIX/libcrypto.lib" "$PREFIX/lib/"
-          if [ -f "$LIB_POSIX/zlib.lib" ]; then
-            cp "$LIB_POSIX/zlib.lib" "$PREFIX/lib/"
-            cp "$LIB_POSIX/zlib.lib" "$PREFIX/lib/z.lib"
-          fi
+            if [ -f "$LIB_POSIX/zlib.lib" ]; then
+              cp "$LIB_POSIX/zlib.lib" "$PREFIX/lib/"
+              cp "$LIB_POSIX/zlib.lib" "$PREFIX/lib/z.lib"
+            fi
 
-          PACKAGE_NAME="ffmpeg-${FFMPEG_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
-          cd "$WORKSPACE"
-          mkdir -p artifacts
-          tar -czf "artifacts/$PACKAGE_NAME" -C build .
+            PACKAGE_NAME="ffmpeg-${FFMPEG_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
+            cd "$WORKSPACE"
+            mkdir -p artifacts
+            tar -czf "artifacts/$PACKAGE_NAME" -C build .
 
           '@
           $scriptContent = [regex]::Replace($scriptContent, '^(          )', '', [System.Text.RegularExpressions.RegexOptions]::Multiline)
@@ -440,7 +433,6 @@ jobs:
           files: release-artifacts/**/*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
 
 
 
