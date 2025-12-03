@@ -407,7 +407,7 @@ jobs:
             tar -czf "artifacts/$PACKAGE_NAME" -C build .
 
           '@
-          $scriptContent = [regex]::Replace($scriptContent, '^(          )', '', [System.Text.RegularExpressions.RegexOptions]::Multiline)
+          $scriptContent = [regex]::Replace($scriptContent, '^\s*', '', [System.Text.RegularExpressions.RegexOptions]::Multiline)
           $scriptContent | Set-Content -Path $scriptPath -Encoding utf8NoBOM
 
           $cmdWrapper = @"
