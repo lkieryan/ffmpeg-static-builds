@@ -310,6 +310,34 @@ jobs:
             fi
             cd "$SRC_DIR"
 
+            cat > ffbuild/msvc-ar.sh <<'EOF'
+            #!/bin/sh
+            set -e
+            outflag=
+            otherflags=
+            rsp="$(mktemp ffmpeg_ar_XXXXXX.rsp)"
+            cleanup() { rm -f "$rsp"; }
+            trap cleanup EXIT
+            for arg in "$@"; do
+              case "$arg" in
+                -out:*)
+                  outflag="$arg"
+                  ;;
+                -nologo)
+                  otherflags="$otherflags $arg"
+                  ;;
+                -*|/*)
+                  otherflags="$otherflags $arg"
+                  ;;
+                *)
+                  printf '%s\n' "$arg" >> "$rsp"
+                  ;;
+              esac
+            done
+            exec lib.exe $otherflags "$outflag" @"$rsp"
+            EOF
+            chmod +x ffbuild/msvc-ar.sh
+
             PREFIX="$WORKSPACE/build"
             rm -rf "$PREFIX"
             mkdir -p "$PREFIX"
@@ -345,6 +373,10 @@ jobs:
               --prefix="$PREFIX" \
               --enable-static \
               --disable-shared \
+              --disable-avdevice \
+              --disable-avfilter \
+              --disable-postproc \
+              --disable-swscale \
               --disable-doc \
               --disable-ffplay \
               --disable-ffprobe \
@@ -357,8 +389,8 @@ jobs:
               --extra-cflags="-I$INCLUDE_MSYS" \
               --extra-ldflags="-LIBPATH:$LIB_MSYS"
 
-            make CCDEP= CXXDEP= ASDEP= HOSTCCDEP=
-            make CCDEP= CXXDEP= ASDEP= HOSTCCDEP= install
+            make CCDEP= CXXDEP= ASDEP= HOSTCCDEP= AR="sh ffbuild/msvc-ar.sh"
+            make CCDEP= CXXDEP= ASDEP= HOSTCCDEP= AR="sh ffbuild/msvc-ar.sh" install
 
             if [ -f "$LIB_POSIX/zlib.lib" ]; then
               cp "$LIB_POSIX/zlib.lib" "$PREFIX/lib/"
