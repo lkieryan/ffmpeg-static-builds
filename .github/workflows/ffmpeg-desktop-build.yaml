@@ -357,8 +357,8 @@ jobs:
               --extra-cflags="-I$INCLUDE_MSYS" \
               --extra-ldflags="-LIBPATH:$LIB_MSYS"
 
-            make
-            make install
+            make CCDEP= CXXDEP= ASDEP= HOSTCCDEP=
+            make CCDEP= CXXDEP= ASDEP= HOSTCCDEP= install
 
             if [ -f "$LIB_POSIX/zlib.lib" ]; then
               cp "$LIB_POSIX/zlib.lib" "$PREFIX/lib/"
