@@ -29,7 +29,7 @@ fi
 WORKSPACE="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "$WORKSPACE"
 
-if [ ! -d FFmpeg ]; then
+if [ ! -d "FFmpeg" ]; then
     echo "Downloading FFmpeg ${FFMPEG_VERSION}..."
     curl -L "${FFMPEG_SOURCE_URL}/archive/refs/tags/${FFMPEG_VERSION}.tar.gz" -o ffmpeg.tar.gz
     tar -xf ffmpeg.tar.gz
@@ -42,7 +42,7 @@ fi
 
 cd "$SCRIPT_DIR"
 
-./build-ffmpeg.sh FFmpeg $FF_ARGS
+./build-ffmpeg.sh "$WORKSPACE/FFmpeg" $FF_ARGS
 
 # Package /usr/local into artifacts tarball
 if [ -z "${ARTIFACT_SUFFIX:-}" ]; then
@@ -57,4 +57,3 @@ PACKAGE_NAME="ffmpeg-${FFMPEG_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
 
 cd "${INSTALL_PREFIX}"
 tar -czf "${ARTIFACT_DIR}/${PACKAGE_NAME}" .
-

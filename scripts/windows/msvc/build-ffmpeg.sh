@@ -3,7 +3,7 @@
 
 set -e
 echo -e "\n[Build $1]"
-SRC_DIR=$(pwd)/$1
+SRC_DIR="$1"
 shift 1
 cd "$SRC_DIR"
 
@@ -25,4 +25,3 @@ EX_BUILD_ARGS="$TYPE_ARGS $CROSS_ARGS $LICENSE_ARGS"
 CFLAGS="$CFLAGS" ./configure --toolchain=msvc --arch="$BUILD_ARCH" $EX_BUILD_ARGS "$@"
 make -j"$(nproc)"
 make install prefix="$INSTALL_PREFIX"
-
