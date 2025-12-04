@@ -26,7 +26,7 @@ if [ -z "${FFMPEG_VERSION:-}" ]; then
     exit 1
 fi
 
-WORKSPACE="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+WORKSPACE="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 cd "$WORKSPACE"
 
 if [ ! -d "FFmpeg" ]; then
@@ -50,7 +50,7 @@ if [ -z "${ARTIFACT_SUFFIX:-}" ]; then
     exit 1
 fi
 
-WORKSPACE="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+WORKSPACE="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 ARTIFACT_DIR="${WORKSPACE}/artifacts"
 mkdir -p "${ARTIFACT_DIR}"
 PACKAGE_NAME="ffmpeg-${FFMPEG_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
