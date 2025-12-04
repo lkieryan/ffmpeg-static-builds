@@ -200,7 +200,7 @@ jobs:
           ln -sf "$RANLIB" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-ranlib"
           ln -sf "$NM" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-nm"
           ln -sf "$STRIP" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-strip"
-          # 修复：给 FFmpeg 提供期望的 x86_64-w64-mingw32-dlltool，避免 .lib 生成失败
+          # 修复：提供 x86_64-w64-mingw32-dlltool，避免 .lib 生成失败
           ln -sf "$MINGW_PREFIX/bin/dlltool" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-dlltool"
 
           export PKG_CONFIG_PATH=/mingw64/lib/pkgconfig
@@ -364,9 +364,10 @@ jobs:
             --extra-cflags="-I$INCLUDE_MSYS" \
             --extra-ldflags="-LIBPATH:$LIB_MSYS"
 
-          # 关键修复：不再强行覆写 AR，完全交给 --toolchain=msvc 自己处理
-          make
-          make install
+          # 关键修复1：不再覆写 AR，完全交给 --toolchain=msvc 自己处理
+          # 关键修复2：禁用依赖扫描（CCDEP 等），绕过 awk 解析 /showIncludes 的坑
+          make CCDEP= CXXDEP= ASDEP= HOSTCCDEP=
+          make CCDEP= CXXDEP= ASDEP= HOSTCCDEP= install
 
           if [ -f "$LIB_POSIX/zlib.lib" ]; then
             cp "$LIB_POSIX/zlib.lib" "$PREFIX/lib/"
