@@ -138,8 +138,8 @@ jobs:
             --disable-ffplay
             --disable-ffprobe
             --disable-avdevice
-            --disable-shared
-            --enable-static
+            --enable-shared
+            --disable-static
             --enable-gpl
             --enable-version3
             --enable-demuxer=dash
@@ -247,8 +247,8 @@ jobs:
             --disable-ffplay \
             --disable-ffprobe \
             --disable-avdevice \
-            --disable-shared \
-            --enable-static \
+            --enable-shared \
+            --disable-static \
             --enable-gpl \
             --enable-version3 \
             --enable-demuxer=dash \
