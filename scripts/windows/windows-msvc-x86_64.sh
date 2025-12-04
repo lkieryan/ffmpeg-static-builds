@@ -51,6 +51,7 @@ echo "Resolved lib dir: ${LIB_MSYS}"
   --arch=x86_64 \
   --target-os=win64 \
   --prefix="${PREFIX}" \
+  --disable-avfilter \
   --enable-static \
   --disable-shared \
   --enable-demuxer=dash \
@@ -79,4 +80,3 @@ if [[ -f "${LIB_POSIX}/zlib.lib" ]]; then
 fi
 
 package_build
-
