@@ -145,8 +145,8 @@ jobs:
 
           CONFIG_ARGS=(
             --prefix="$PREFIX"
-            --disable-shared
-            --enable-static
+            --enable-shared
+            --disable-static
             --enable-gpl
             --enable-version3
             --disable-debug
@@ -228,7 +228,6 @@ jobs:
             --enable-cross-compile \
             --cross-prefix=x86_64-w64-mingw32- \
             --pkg-config=x86_64-w64-mingw32-pkg-config \
-            --pkg-config-flags="--static" \
             --disable-debug \
             --disable-doc \
             --disable-ffplay \
@@ -238,13 +237,11 @@ jobs:
             --enable-protocol=http \
             --enable-protocol=https \
             --enable-openssl \
-            --disable-shared \
-            --enable-static \
+            --enable-shared \
+            --disable-static \
             --enable-gpl \
             --enable-version3 \
-            --extra-cflags="-static -static-libgcc -static-libstdc++" \
-            --extra-libs="-lssl -lcrypto -lws2_32 -lgdi32 -lz -lcrypt32 -lbcrypt" \
-            --extra-ldflags="-static"
+            --extra-libs="-lssl -lcrypto -lws2_32 -lgdi32 -lz -lcrypt32 -lbcrypt"
 
           make -j"$(nproc)"
           make install
@@ -371,8 +368,8 @@ jobs:
               --arch=x86_64 \
               --target-os=win64 \
               --prefix="$PREFIX" \
-              --enable-static \
-              --disable-shared \
+              --enable-shared \
+              --disable-static \
               --enable-demuxer=dash \
               --enable-muxer=dash \
               --enable-protocol=http \
@@ -469,11 +466,3 @@ jobs:
           files: release-artifacts/**/*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-
-
-
-
-
-
-
