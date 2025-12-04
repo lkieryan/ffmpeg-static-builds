@@ -291,7 +291,8 @@ jobs:
 
           # 关键：禁用 strip，避免 x86_64-w64-mingw32-strip not found
           make -j"$(nproc)" STRIP=":"
-          make install STRIP=":"
+          # 仅安装库和头文件，避免安装 ffmpeg.exe 失败
+          make install-libs install-headers STRIP=":"
 
           PACKAGE_NAME="ffmpeg-${FFMPEG_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
           cd "$GITHUB_WORKSPACE"
@@ -402,8 +403,9 @@ jobs:
             --extra-cflags="-I$INCLUDE_MSYS" \
             --extra-ldflags="-LIBPATH:$LIB_MSYS"
 
-          make -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
-          make install
+          # 禁用 MSVC 依赖生成，避免 awk /including/ 语法错误
+          make CCDEP= CXXDEP= ASDEP= HOSTCCDEP=
+          make CCDEP= CXXDEP= ASDEP= HOSTCCDEP= install
 
           if [ -f "$LIB_POSIX/zlib.lib" ]; then
             cp "$LIB_POSIX/zlib.lib" "$PREFIX/lib/"
