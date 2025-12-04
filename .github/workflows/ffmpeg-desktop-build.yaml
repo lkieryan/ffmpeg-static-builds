@@ -6,7 +6,7 @@ on:
       ffmpeg-version:
         description: "FFmpeg release tag (e.g. n7.0.2)"
         required: false
-        default: "n7.0.2"
+        default: "latest"
       publish-release:
         description: "Publish GitHub release?"
         type: boolean
@@ -17,7 +17,7 @@ on:
       - "ffmpeg-*"
 
 env:
-  FFMPEG_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.ffmpeg-version || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'n7.0.2' }}
+  FFMPEG_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.ffmpeg-version || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'latest' }}
   FFMPEG_SOURCE_URL: https://github.com/FFmpeg/FFmpeg
 
 jobs:
@@ -148,6 +148,11 @@ jobs:
           ARTIFACT_SUFFIX: ${{ matrix.artifact_suffix }}
         run: |
           set -euxo pipefail
+
+          if [[ "${FFMPEG_VERSION}" == "latest" ]]; then
+            latest_url=$(curl -Ls -o /dev/null -w '%{url_effective}' https://github.com/FFmpeg/FFmpeg/releases/latest)
+            FFMPEG_VERSION="${latest_url##*/}"
+          fi
           cd "$GITHUB_WORKSPACE"
 
           curl -L "$FFMPEG_SOURCE_URL/archive/refs/tags/${FFMPEG_VERSION}.tar.gz" -o ffmpeg.tar.gz
@@ -215,6 +220,11 @@ jobs:
 
           export MINGW_PREFIX=/mingw64
           export PATH="$MINGW_PREFIX/bin:$PATH"
+
+          if [ "${FFMPEG_VERSION}" = "latest" ]; then
+            latest_url=$(curl -Ls -o /dev/null -w '%{url_effective}' https://github.com/FFmpeg/FFmpeg/releases/latest)
+            FFMPEG_VERSION="${latest_url##*/}"
+          fi
 
           # 映射 x86_64-w64-mingw32-* 工具
           if [ -x "$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-ar" ]; then
@@ -340,6 +350,11 @@ jobs:
           $scriptContent = @'
           set -euxo pipefail
 
+          if [ "${FFMPEG_VERSION}" = "latest" ]; then
+            latest_url=$(curl -Ls -o /dev/null -w '%{url_effective}' https://github.com/FFmpeg/FFmpeg/releases/latest)
+            FFMPEG_VERSION="${latest_url##*/}"
+          fi
+
           WORKSPACE=$(cygpath "$GITHUB_WORKSPACE")
           cd "$WORKSPACE"
 
@@ -385,8 +400,8 @@ jobs:
             --arch=x86_64 \
             --target-os=win64 \
             --prefix="$PREFIX" \
-            --enable-shared \
-            --disable-static \
+            --enable-static \
+            --disable-shared \
             --enable-demuxer=dash \
             --enable-muxer=dash \
             --enable-protocol=http \
@@ -442,7 +457,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-${{ env.FFMPEG_VERSION }}-${{ matrix.artifact_suffix }}
-          path: artifacts/ffmpeg-${{ env.FFMPEG_VERSION }}-${{ matrix.artifact_suffix }}.tar.gz
+          path: artifacts/ffmpeg-*-${{ matrix.artifact_suffix }}.tar.gz
 
   # === 发布 Release ===
   release:
@@ -465,12 +480,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          RESOLVED_VERSION="${FFMPEG_VERSION}"
+          if [[ "${RESOLVED_VERSION}" == "latest" ]]; then
+            latest_url=$(curl -Ls -o /dev/null -w '%{url_effective}' https://github.com/FFmpeg/FFmpeg/releases/latest)
+            RESOLVED_VERSION="${latest_url##*/}"
+          fi
+
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            TAG_NAME="ffmpeg-${FFMPEG_VERSION}"
+            TAG_NAME="ffmpeg-${RESOLVED_VERSION}"
           else
             TAG_NAME="${GITHUB_REF_NAME}"
           fi
-          RELEASE_NAME="FFmpeg ${FFMPEG_VERSION}"
+          RELEASE_NAME="FFmpeg ${RESOLVED_VERSION}"
           echo "tag=${TAG_NAME}" >> "$GITHUB_OUTPUT"
           echo "name=${RELEASE_NAME}" >> "$GITHUB_OUTPUT"
 
