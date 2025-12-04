@@ -96,7 +96,6 @@ jobs:
         run: |
           brew update
           brew install automake pkg-config nasm yasm cmake libxml2
-          # 某些环境 pkg-config 找不到 libxml2，这里强制补一手
           export PKG_CONFIG_PATH="$(brew --prefix libxml2)/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
 
       # === Windows MinGW 工具链 ===
@@ -132,7 +131,6 @@ jobs:
 
           & "$env:GITHUB_WORKSPACE\\vcpkg\\bootstrap-vcpkg.bat" -disableMetrics
 
-          # 注意：这里加上 libxml2:x64-windows-static，配合 static triplet 的 pkgconfig
           & "$env:GITHUB_WORKSPACE\\vcpkg\\vcpkg.exe" install `
             zlib:x64-windows `
             zlib:x64-windows-static `
@@ -186,7 +184,6 @@ jobs:
           if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
             CONFIG_ARGS+=(--enable-pic --enable-openssl)
           else
-            # macOS 架构设置
             if [[ "${{ matrix.mac_arch }}" == "x86_64" ]]; then
               export CFLAGS="-arch x86_64 -mmacosx-version-min=11.0"
               export LDFLAGS="-arch x86_64 -mmacosx-version-min=11.0"
@@ -219,7 +216,7 @@ jobs:
           export MINGW_PREFIX=/mingw64
           export PATH="$MINGW_PREFIX/bin:$PATH"
 
-          # 关键：为 x86_64-w64-mingw32-* 提供实际可执行文件
+          # 映射 x86_64-w64-mingw32-* 工具
           if [ -x "$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-ar" ]; then
             export AR="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-ar"
             ln -sf "$AR" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-ar"
@@ -244,14 +241,8 @@ jobs:
             ln -sf "$NM" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-nm"
           fi
 
-          if [ -x "$MINGW_PREFIX/bin/strip" ]; then
-            export STRIP="$MINGW_PREFIX/bin/strip"
-          fi
-
-          # dlltool 也补一个别名，防止后面找不到
-          if [ -x "$MINGW_PREFIX/bin/x86_64-w64-mingw32-dlltool" ]; then
-            :
-          elif [ -x "$MINGW_PREFIX/bin/dlltool" ]; then
+          # dlltool 别名
+          if [ ! -x "$MINGW_PREFIX/bin/x86_64-w64-mingw32-dlltool" ] && [ -x "$MINGW_PREFIX/bin/dlltool" ]; then
             ln -sf "$MINGW_PREFIX/bin/dlltool" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-dlltool"
           fi
 
@@ -298,22 +289,22 @@ jobs:
             --enable-version3 \
             --extra-libs="-lssl -lcrypto -lws2_32 -lgdi32 -lz -lcrypt32 -lbcrypt"
 
-          make -j"$(nproc)"
-          make install
+          # 关键：禁用 strip，避免 x86_64-w64-mingw32-strip not found
+          make -j"$(nproc)" STRIP=":"
+          make install STRIP=":"
 
           PACKAGE_NAME="ffmpeg-${FFMPEG_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
           cd "$GITHUB_WORKSPACE"
           mkdir -p artifacts
           tar -czf "artifacts/$PACKAGE_NAME" -C build .
 
-      # === Windows MSVC 构建 ===
+      # === Windows MSVC 构建（去掉 --enable-libxml2） ===
       - name: Build FFmpeg (Windows MSVC)
         if: matrix.os == 'windows-latest' && matrix.windows_toolchain == 'msvc'
         shell: pwsh
         env:
           ARTIFACT_SUFFIX: ${{ matrix.artifact_suffix }}
         run: |
-          # 1. 找 vcvars64.bat
           $programFilesX86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
           $vcvars = $null
           if ($programFilesX86) {
@@ -322,7 +313,6 @@ jobs:
               $vcvars = & $vswhereCandidate -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find "**\vcvars64.bat" | Select-Object -First 1
             }
           }
-
           if (-not $vcvars) {
             $vcvarsCandidates = @(
               "$env:ProgramFiles\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat",
@@ -336,18 +326,15 @@ jobs:
             )
             $vcvars = $vcvarsCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
           }
-
           if (-not $vcvars) {
             throw 'vcvars64.bat not found'
           }
 
-          # 2. 找 Git Bash
           $bash = Join-Path $env:ProgramFiles 'Git\bin\bash.exe'
           if (-not (Test-Path $bash)) {
             throw 'Git Bash not found (need Git for Windows)'
           }
 
-          # 3. 写 msvc-build.sh（在 Git Bash 下跑）
           $scriptPath = Join-Path $env:GITHUB_WORKSPACE 'msvc-build.sh'
           $scriptContent = @'
           set -euxo pipefail
@@ -403,7 +390,6 @@ jobs:
             --enable-muxer=dash \
             --enable-protocol=http \
             --enable-protocol=https \
-            --enable-libxml2 \
             --enable-gpl \
             --enable-version3 \
             --enable-schannel \
@@ -433,7 +419,6 @@ jobs:
           $scriptContent = [regex]::Replace($scriptContent, '^\s*', '', [System.Text.RegularExpressions.RegexOptions]::Multiline)
           $scriptContent | Set-Content -Path $scriptPath -Encoding utf8NoBOM
 
-          # 4. cmd wrapper：先 vcvars，再跑 bash
           $cmdWrapper = @"
           @echo off
           call "$vcvars"
