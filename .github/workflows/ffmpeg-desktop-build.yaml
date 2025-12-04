@@ -31,10 +31,6 @@ jobs:
         include:
           - os: ubuntu-22.04
             artifact_suffix: linux-x86_64
-            linux_arch: x86_64
-          - os: ubuntu-22.04
-            artifact_suffix: linux-arm64
-            linux_arch: arm64
           - os: macos-13
             artifact_suffix: macos-x86_64
             mac_arch: x86_64
@@ -82,10 +78,9 @@ jobs:
 
       # === Linux 依赖 ===
       - name: Install build dependencies (Ubuntu)
-        if: startsWith(matrix.os, 'ubuntu')
+        if: matrix.os == 'ubuntu-22.04'
         shell: bash
         run: |
-          sudo dpkg --add-architecture arm64
           sudo apt-get update
           sudo apt-get install -y \
             autoconf \
@@ -97,15 +92,10 @@ jobs:
             pkg-config \
             texinfo \
             zlib1g-dev \
-            zlib1g-dev:arm64 \
             libssl-dev \
-            libssl-dev:arm64 \
             nasm \
             yasm \
-            libxml2-dev \
-            libxml2-dev:arm64 \
-            gcc-aarch64-linux-gnu \
-            g++-aarch64-linux-gnu
+            libxml2-dev
 
       # === macOS 依赖 ===
       - name: Install build dependencies (macOS)
@@ -167,22 +157,13 @@ jobs:
 
       # === Linux 构建 ===
       - name: Build FFmpeg (Linux x86_64)
-        if: startsWith(matrix.os, 'ubuntu') && matrix.linux_arch == 'x86_64'
+        if: matrix.os == 'ubuntu-22.04'
         shell: bash
         env:
           ARTIFACT_SUFFIX: ${{ matrix.artifact_suffix }}
         run: |
           set -euxo pipefail
           bash ./scripts/linux/linux-x86_64.sh
-
-      - name: Build FFmpeg (Linux arm64)
-        if: startsWith(matrix.os, 'ubuntu') && matrix.linux_arch == 'arm64'
-        shell: bash
-        env:
-          ARTIFACT_SUFFIX: ${{ matrix.artifact_suffix }}
-        run: |
-          set -euxo pipefail
-          bash ./scripts/linux/linux-arm64.sh
 
       # === macOS x86_64 构建 ===
       - name: Build FFmpeg (macOS x86_64)
