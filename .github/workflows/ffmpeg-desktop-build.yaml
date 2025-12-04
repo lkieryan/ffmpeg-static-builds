@@ -31,6 +31,10 @@ jobs:
         include:
           - os: ubuntu-latest
             artifact_suffix: linux-x86_64
+            linux_arch: x86_64
+          - os: ubuntu-latest
+            artifact_suffix: linux-arm64
+            linux_arch: arm64
           - os: macos-13
             artifact_suffix: macos-x86_64
             mac_arch: x86_64
@@ -43,6 +47,13 @@ jobs:
           - os: windows-latest
             artifact_suffix: windows-msvc-x86_64
             windows_toolchain: msvc
+            msvc_arch: amd64
+            msvc_vcvars_target: amd64
+          - os: windows-latest
+            artifact_suffix: windows-msvc-arm64
+            windows_toolchain: msvc
+            msvc_arch: arm64
+            msvc_vcvars_target: amd64_arm64
 
     steps:
       - name: Checkout repository
@@ -74,6 +85,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
+          sudo dpkg --add-architecture arm64
           sudo apt-get update
           sudo apt-get install -y \
             autoconf \
@@ -85,10 +97,15 @@ jobs:
             pkg-config \
             texinfo \
             zlib1g-dev \
+            zlib1g-dev:arm64 \
             libssl-dev \
+            libssl-dev:arm64 \
             nasm \
             yasm \
-            libxml2-dev
+            libxml2-dev \
+            libxml2-dev:arm64 \
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu
 
       # === macOS 依赖 ===
       - name: Install build dependencies (macOS)
@@ -150,13 +167,22 @@ jobs:
 
       # === Linux 构建 ===
       - name: Build FFmpeg (Linux x86_64)
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' && matrix.linux_arch == 'x86_64'
         shell: bash
         env:
           ARTIFACT_SUFFIX: ${{ matrix.artifact_suffix }}
         run: |
           set -euxo pipefail
           bash ./scripts/linux/linux-x86_64.sh
+
+      - name: Build FFmpeg (Linux arm64)
+        if: matrix.os == 'ubuntu-latest' && matrix.linux_arch == 'arm64'
+        shell: bash
+        env:
+          ARTIFACT_SUFFIX: ${{ matrix.artifact_suffix }}
+        run: |
+          set -euxo pipefail
+          bash ./scripts/linux/linux-arm64.sh
 
       # === macOS x86_64 构建 ===
       - name: Build FFmpeg (macOS x86_64)
@@ -194,6 +220,9 @@ jobs:
         shell: cmd
         env:
           ARTIFACT_SUFFIX: ${{ matrix.artifact_suffix }}
+          MSVC_ARCH: ${{ matrix.msvc_arch }}
+          MSVC_VCVARS_TARGET: ${{ matrix.msvc_vcvars_target }}
+          WINDOWS_SDK_VER: 10.0.22621.0
         run: |
           CALL "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath > vswhere_path.txt
           SET /P VS_PATH=<vswhere_path.txt
@@ -201,8 +230,8 @@ jobs:
             ECHO vcvarsall.bat not found
             EXIT /B 1
           )
-          CALL "%VS_PATH%\VC\Auxiliary\Build\vcvarsall.bat" x64
-          msys2 -c "./scripts/windows/msvc/build.sh amd64 shared gpl"
+          CALL "%VS_PATH%\VC\Auxiliary\Build\vcvarsall.bat" %MSVC_VCVARS_TARGET% %WINDOWS_SDK_VER%
+          msys2 -c "./scripts/windows/msvc/build.sh %MSVC_ARCH% shared gpl"
 
       # === 上传 artifacts ===
       - name: Upload artifact
