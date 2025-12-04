@@ -200,6 +200,8 @@ jobs:
           ln -sf "$RANLIB" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-ranlib"
           ln -sf "$NM" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-nm"
           ln -sf "$STRIP" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-strip"
+          # 修复：给 FFmpeg 提供期望的 x86_64-w64-mingw32-dlltool，避免 .lib 生成失败
+          ln -sf "$MINGW_PREFIX/bin/dlltool" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-dlltool"
 
           export PKG_CONFIG_PATH=/mingw64/lib/pkgconfig
           export PKG_CONFIG=/mingw64/bin/pkg-config
@@ -293,115 +295,88 @@ jobs:
           }
 
           $scriptPath = Join-Path $env:GITHUB_WORKSPACE 'msvc-build.sh'
-            $scriptContent = @'
-            set -euxo pipefail
+          $scriptContent = @'
+          set -euxo pipefail
 
-            WORKSPACE=$(cygpath "$GITHUB_WORKSPACE")
-            cd "$WORKSPACE"
+          WORKSPACE=$(cygpath "$GITHUB_WORKSPACE")
+          cd "$WORKSPACE"
 
-            curl -L "$FFMPEG_SOURCE_URL/archive/refs/tags/${FFMPEG_VERSION}.tar.gz" -o ffmpeg.tar.gz
-            tar -xf ffmpeg.tar.gz
-            SRC_DIR="FFmpeg-${FFMPEG_VERSION}"
-            if [ ! -d "$SRC_DIR" ]; then
-              SRC_DIR=$(tar -tf ffmpeg.tar.gz | head -1 | cut -d/ -f1)
-            fi
-            cd "$SRC_DIR"
+          curl -L "$FFMPEG_SOURCE_URL/archive/refs/tags/${FFMPEG_VERSION}.tar.gz" -o ffmpeg.tar.gz
+          tar -xf ffmpeg.tar.gz
+          SRC_DIR="FFmpeg-${FFMPEG_VERSION}"
+          if [ ! -d "$SRC_DIR" ]; then
+            SRC_DIR=$(tar -tf ffmpeg.tar.gz | head -1 | cut -d/ -f1)
+          fi
+          cd "$SRC_DIR"
 
-            cat > ffbuild/msvc-ar.sh <<'EOF'
-            #!/bin/sh
-            set -e
-            outflag=
-            otherflags=
-            rsp="$(mktemp ffmpeg_ar_XXXXXX.rsp)"
-            cleanup() { rm -f "$rsp"; }
-            trap cleanup EXIT
-            for arg in "$@"; do
-              case "$arg" in
-                -out:*)
-                  outflag="$arg"
-                  ;;
-                -nologo)
-                  otherflags="$otherflags $arg"
-                  ;;
-                -*|/*)
-                  otherflags="$otherflags $arg"
-                  ;;
-                *)
-                  printf '%s\n' "$arg" >> "$rsp"
-                  ;;
-              esac
-            done
-            exec lib.exe $otherflags "$outflag" @"$rsp"
-            EOF
-            chmod +x ffbuild/msvc-ar.sh
+          PREFIX="$WORKSPACE/build"
+          rm -rf "$PREFIX"
+          mkdir -p "$PREFIX"
 
-            PREFIX="$WORKSPACE/build"
-            rm -rf "$PREFIX"
-            mkdir -p "$PREFIX"
+          VCPKG_ROOT="$GITHUB_WORKSPACE/vcpkg"
+          TRIPLET_STATIC="x64-windows-static"
+          TRIPLET_DYNAMIC="x64-windows"
+          INCLUDE_MSYS=$(cygpath -m "$VCPKG_ROOT/installed/$TRIPLET_STATIC/include")
+          LIB_MSYS=$(cygpath -m "$VCPKG_ROOT/installed/$TRIPLET_STATIC/lib")
+          LIB_POSIX=$(cygpath "$VCPKG_ROOT/installed/$TRIPLET_STATIC/lib")
+          PKGCONF_DIR=$(cygpath "$VCPKG_ROOT/installed/$TRIPLET_DYNAMIC/tools/pkgconf")
+          PKGCONF_BIN="$PKGCONF_DIR/pkgconf.exe"
+          if [ ! -x "$PKGCONF_BIN" ]; then
+            echo "pkgconf not found at $PKGCONF_BIN" >&2
+            exit 1
+          fi
+          export PKG_CONFIG="$PKGCONF_BIN --msvc-syntax"
+          export PKG_CONFIG_PATH=$(cygpath -m "$VCPKG_ROOT/installed/$TRIPLET_STATIC/lib/pkgconfig")
+          export PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH"
+          export PKG_CONFIG_SYSTEM_LIBRARY_PATH=$(cygpath -m "$VCPKG_ROOT/installed/$TRIPLET_STATIC/lib")
+          export PKG_CONFIG_SYSTEM_INCLUDE_PATH=$(cygpath -m "$VCPKG_ROOT/installed/$TRIPLET_STATIC/include")
+          export PATH="$PATH:$(cygpath "$VCPKG_ROOT/installed/$TRIPLET_DYNAMIC/bin"):$PKGCONF_DIR"
+          if [ -d "$(cygpath "$VCPKG_ROOT/installed/$TRIPLET_STATIC/bin")" ]; then
+            export PATH="$PATH:$(cygpath "$VCPKG_ROOT/installed/$TRIPLET_STATIC/bin")"
+          fi
+          echo "Resolved zlib include dir: $INCLUDE_MSYS"
+          echo "Resolved zlib lib dir: $LIB_MSYS"
 
-            VCPKG_ROOT="$GITHUB_WORKSPACE/vcpkg"
-            TRIPLET_STATIC="x64-windows-static"
-            TRIPLET_DYNAMIC="x64-windows"
-            INCLUDE_MSYS=$(cygpath -m "$VCPKG_ROOT/installed/$TRIPLET_STATIC/include")
-            LIB_MSYS=$(cygpath -m "$VCPKG_ROOT/installed/$TRIPLET_STATIC/lib")
-            LIB_POSIX=$(cygpath "$VCPKG_ROOT/installed/$TRIPLET_STATIC/lib")
-            PKGCONF_DIR=$(cygpath "$VCPKG_ROOT/installed/$TRIPLET_DYNAMIC/tools/pkgconf")
-            PKGCONF_BIN="$PKGCONF_DIR/pkgconf.exe"
-            if [ ! -x "$PKGCONF_BIN" ]; then
-              echo "pkgconf not found at $PKGCONF_BIN" >&2
-              exit 1
-            fi
-            export PKG_CONFIG="$PKGCONF_BIN --msvc-syntax"
-            export PKG_CONFIG_PATH=$(cygpath -m "$VCPKG_ROOT/installed/$TRIPLET_STATIC/lib/pkgconfig")
-            export PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH"
-            export PKG_CONFIG_SYSTEM_LIBRARY_PATH=$(cygpath -m "$VCPKG_ROOT/installed/$TRIPLET_STATIC/lib")
-            export PKG_CONFIG_SYSTEM_INCLUDE_PATH=$(cygpath -m "$VCPKG_ROOT/installed/$TRIPLET_STATIC/include")
-            export PATH="$PATH:$(cygpath "$VCPKG_ROOT/installed/$TRIPLET_DYNAMIC/bin"):$PKGCONF_DIR"
-            if [ -d "$(cygpath "$VCPKG_ROOT/installed/$TRIPLET_STATIC/bin")" ]; then
-              export PATH="$PATH:$(cygpath "$VCPKG_ROOT/installed/$TRIPLET_STATIC/bin")"
-            fi
-            echo "Resolved zlib include dir: $INCLUDE_MSYS"
-            echo "Resolved zlib lib dir: $LIB_MSYS"
+          ./configure \
+            --toolchain=msvc \
+            --arch=x86_64 \
+            --target-os=win64 \
+            --prefix="$PREFIX" \
+            --enable-shared \
+            --disable-static \
+            --enable-demuxer=dash \
+            --enable-muxer=dash \
+            --enable-protocol=http \
+            --enable-protocol=https \
+            --disable-avdevice \
+            --disable-avfilter \
+            --disable-postproc \
+            --disable-swscale \
+            --disable-doc \
+            --disable-ffplay \
+            --disable-ffprobe \
+            --disable-ffmpeg \
+            --enable-gpl \
+            --enable-version3 \
+            --enable-schannel \
+            --enable-zlib \
+            --enable-nonfree \
+            --extra-cflags="-I$INCLUDE_MSYS" \
+            --extra-ldflags="-LIBPATH:$LIB_MSYS"
 
-            ./configure \
-              --toolchain=msvc \
-              --arch=x86_64 \
-              --target-os=win64 \
-              --prefix="$PREFIX" \
-              --enable-shared \
-              --disable-static \
-              --enable-demuxer=dash \
-              --enable-muxer=dash \
-              --enable-protocol=http \
-              --enable-protocol=https \
-              --disable-avdevice \
-              --disable-avfilter \
-              --disable-postproc \
-              --disable-swscale \
-              --disable-doc \
-              --disable-ffplay \
-              --disable-ffprobe \
-              --disable-ffmpeg \
-              --enable-gpl \
-              --enable-version3 \
-              --enable-schannel \
-              --enable-zlib \
-              --enable-nonfree \
-              --extra-cflags="-I$INCLUDE_MSYS" \
-              --extra-ldflags="-LIBPATH:$LIB_MSYS"
+          # 关键修复：不再强行覆写 AR，完全交给 --toolchain=msvc 自己处理
+          make
+          make install
 
-            make CCDEP= CXXDEP= ASDEP= HOSTCCDEP= AR="sh ffbuild/msvc-ar.sh"
-            make CCDEP= CXXDEP= ASDEP= HOSTCCDEP= AR="sh ffbuild/msvc-ar.sh" install
+          if [ -f "$LIB_POSIX/zlib.lib" ]; then
+            cp "$LIB_POSIX/zlib.lib" "$PREFIX/lib/"
+            cp "$LIB_POSIX/zlib.lib" "$PREFIX/lib/z.lib"
+          fi
 
-            if [ -f "$LIB_POSIX/zlib.lib" ]; then
-              cp "$LIB_POSIX/zlib.lib" "$PREFIX/lib/"
-              cp "$LIB_POSIX/zlib.lib" "$PREFIX/lib/z.lib"
-            fi
-
-            PACKAGE_NAME="ffmpeg-${FFMPEG_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
-            cd "$WORKSPACE"
-            mkdir -p artifacts
-            tar -czf "artifacts/$PACKAGE_NAME" -C build .
+          PACKAGE_NAME="ffmpeg-${FFMPEG_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
+          cd "$WORKSPACE"
+          mkdir -p artifacts
+          tar -czf "artifacts/$PACKAGE_NAME" -C build .
 
           '@
           $scriptContent = [regex]::Replace($scriptContent, '^\s*', '', [System.Text.RegularExpressions.RegexOptions]::Multiline)
