@@ -29,10 +29,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             artifact_suffix: linux-x86_64
             linux_arch: x86_64
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             artifact_suffix: linux-arm64
             linux_arch: arm64
           - os: macos-13
@@ -82,7 +82,7 @@ jobs:
 
       # === Linux 依赖 ===
       - name: Install build dependencies (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
+        if: startsWith(matrix.os, 'ubuntu')
         shell: bash
         run: |
           sudo dpkg --add-architecture arm64
@@ -167,7 +167,7 @@ jobs:
 
       # === Linux 构建 ===
       - name: Build FFmpeg (Linux x86_64)
-        if: matrix.os == 'ubuntu-latest' && matrix.linux_arch == 'x86_64'
+        if: startsWith(matrix.os, 'ubuntu') && matrix.linux_arch == 'x86_64'
         shell: bash
         env:
           ARTIFACT_SUFFIX: ${{ matrix.artifact_suffix }}
@@ -176,7 +176,7 @@ jobs:
           bash ./scripts/linux/linux-x86_64.sh
 
       - name: Build FFmpeg (Linux arm64)
-        if: matrix.os == 'ubuntu-latest' && matrix.linux_arch == 'arm64'
+        if: startsWith(matrix.os, 'ubuntu') && matrix.linux_arch == 'arm64'
         shell: bash
         env:
           ARTIFACT_SUFFIX: ${{ matrix.artifact_suffix }}
@@ -222,7 +222,6 @@ jobs:
           ARTIFACT_SUFFIX: ${{ matrix.artifact_suffix }}
           MSVC_ARCH: ${{ matrix.msvc_arch }}
           MSVC_VCVARS_TARGET: ${{ matrix.msvc_vcvars_target }}
-          WINDOWS_SDK_VER: 10.0.22621.0
         run: |
           CALL "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath > vswhere_path.txt
           SET /P VS_PATH=<vswhere_path.txt
@@ -230,7 +229,7 @@ jobs:
             ECHO vcvarsall.bat not found
             EXIT /B 1
           )
-          CALL "%VS_PATH%\VC\Auxiliary\Build\vcvarsall.bat" %MSVC_VCVARS_TARGET% %WINDOWS_SDK_VER%
+          CALL "%VS_PATH%\VC\Auxiliary\Build\vcvarsall.bat" %MSVC_VCVARS_TARGET%
           msys2 -c "./scripts/windows/msvc/build.sh %MSVC_ARCH% shared gpl"
 
       # === 上传 artifacts ===
