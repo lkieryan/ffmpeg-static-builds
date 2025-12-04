@@ -6,7 +6,7 @@ on:
       ffmpeg-version:
         description: "FFmpeg release tag (e.g. n7.0.2)"
         required: false
-        default: "n8.0"
+        default: "n7.1"
       publish-release:
         description: "Publish GitHub release?"
         type: boolean
@@ -17,7 +17,7 @@ on:
       - "ffmpeg-*"
 
 env:
-  FFMPEG_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.ffmpeg-version || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'n8.0' }}
+  FFMPEG_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.ffmpeg-version || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || 'n7.1' }}
   FFMPEG_SOURCE_URL: https://github.com/FFmpeg/FFmpeg
 
 jobs:

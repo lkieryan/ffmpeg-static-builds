@@ -51,9 +51,8 @@ echo "Resolved lib dir: ${LIB_MSYS}"
   --arch=x86_64 \
   --target-os=win64 \
   --prefix="${PREFIX}" \
-  --disable-avfilter \
-  --enable-static \
-  --disable-shared \
+  --enable-shared \
+  --disable-static \
   --enable-demuxer=dash \
   --enable-muxer=dash \
   --enable-protocol=http \
