@@ -47,7 +47,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # -------------------- 公共 artifacts 目录 --------------------
+      # === 公共 artifacts 目录 ===
       - name: Prepare artifact directory (POSIX)
         if: matrix.os != 'windows-latest'
         shell: bash
@@ -68,7 +68,7 @@ jobs:
             New-Item -Path $artifactPath -ItemType Directory | Out-Null
           }
 
-      # -------------------- Linux 依赖 --------------------
+      # === Linux 依赖 ===
       - name: Install build dependencies (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
         shell: bash
@@ -89,19 +89,17 @@ jobs:
             yasm \
             libxml2-dev
 
-      # -------------------- macOS 依赖 --------------------
+      # === macOS 依赖 ===
       - name: Install build dependencies (macOS)
         if: startsWith(matrix.os, 'macos')
         shell: bash
         run: |
           brew update
           brew install automake pkg-config nasm yasm cmake libxml2
-          # 某些环境 pkg-config 找不到 libxml2，这里强制加一手
-          if ! pkg-config --exists libxml-2.0; then
-            export PKG_CONFIG_PATH="$(brew --prefix libxml2)/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-          fi
+          # 某些环境 pkg-config 找不到 libxml2，这里强制补一手
+          export PKG_CONFIG_PATH="$(brew --prefix libxml2)/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
 
-      # -------------------- Windows MinGW 工具链 --------------------
+      # === Windows MinGW 工具链 ===
       - name: Set up MSYS2 toolchain (Windows MinGW)
         if: matrix.os == 'windows-latest' && matrix.windows_toolchain == 'mingw'
         uses: msys2/setup-msys2@v2
@@ -121,7 +119,7 @@ jobs:
             mingw-w64-x86_64-ca-certificates
             mingw-w64-x86_64-libxml2
 
-      # -------------------- Windows MSVC 依赖 (vcpkg) --------------------
+      # === Windows MSVC 依赖 (vcpkg) ===
       - name: Install build dependencies (Windows MSVC)
         if: matrix.os == 'windows-latest' && matrix.windows_toolchain == 'msvc'
         shell: pwsh
@@ -134,16 +132,17 @@ jobs:
 
           & "$env:GITHUB_WORKSPACE\\vcpkg\\bootstrap-vcpkg.bat" -disableMetrics
 
-          # 这里装动态/静态 zlib + openssl + pkgconf
+          # 注意：这里加上 libxml2:x64-windows-static，配合 static triplet 的 pkgconfig
           & "$env:GITHUB_WORKSPACE\\vcpkg\\vcpkg.exe" install `
             zlib:x64-windows `
             zlib:x64-windows-static `
             openssl:x64-windows `
             openssl:x64-windows-static `
             pkgconf:x64-windows `
-            libxml2:x64-windows
+            libxml2:x64-windows `
+            libxml2:x64-windows-static
 
-      # -------------------- Linux / macOS 构建 --------------------
+      # === Linux / macOS 构建 ===
       - name: Build FFmpeg (Linux / macOS)
         if: matrix.os != 'windows-latest'
         shell: bash
@@ -208,7 +207,7 @@ jobs:
           mkdir -p artifacts
           tar -czf "artifacts/$PACKAGE_NAME" -C build .
 
-      # -------------------- Windows MinGW 构建 --------------------
+      # === Windows MinGW 构建 ===
       - name: Build FFmpeg (Windows MinGW)
         if: matrix.os == 'windows-latest' && matrix.windows_toolchain == 'mingw'
         shell: msys2 {0}
@@ -220,8 +219,41 @@ jobs:
           export MINGW_PREFIX=/mingw64
           export PATH="$MINGW_PREFIX/bin:$PATH"
 
-          # dlltool 在 binutils 里，确保能找到
-          command -v x86_64-w64-mingw32-dlltool || ls -l $MINGW_PREFIX/bin
+          # 关键：为 x86_64-w64-mingw32-* 提供实际可执行文件
+          if [ -x "$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-ar" ]; then
+            export AR="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-ar"
+            ln -sf "$AR" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-ar"
+          elif [ -x "$MINGW_PREFIX/bin/ar" ]; then
+            export AR="$MINGW_PREFIX/bin/ar"
+            ln -sf "$AR" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-ar"
+          fi
+
+          if [ -x "$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-ranlib" ]; then
+            export RANLIB="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-ranlib"
+            ln -sf "$RANLIB" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-ranlib"
+          elif [ -x "$MINGW_PREFIX/bin/ranlib" ]; then
+            export RANLIB="$MINGW_PREFIX/bin/ranlib"
+            ln -sf "$RANLIB" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-ranlib"
+          fi
+
+          if [ -x "$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-nm" ]; then
+            export NM="$MINGW_PREFIX/bin/x86_64-w64-mingw32-gcc-nm"
+            ln -sf "$NM" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-nm"
+          elif [ -x "$MINGW_PREFIX/bin/nm" ]; then
+            export NM="$MINGW_PREFIX/bin/nm"
+            ln -sf "$NM" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-nm"
+          fi
+
+          if [ -x "$MINGW_PREFIX/bin/strip" ]; then
+            export STRIP="$MINGW_PREFIX/bin/strip"
+          fi
+
+          # dlltool 也补一个别名，防止后面找不到
+          if [ -x "$MINGW_PREFIX/bin/x86_64-w64-mingw32-dlltool" ]; then
+            :
+          elif [ -x "$MINGW_PREFIX/bin/dlltool" ]; then
+            ln -sf "$MINGW_PREFIX/bin/dlltool" "$MINGW_PREFIX/bin/x86_64-w64-mingw32-dlltool"
+          fi
 
           export PKG_CONFIG_PATH="$MINGW_PREFIX/lib/pkgconfig"
           export PKG_CONFIG="$MINGW_PREFIX/bin/pkg-config"
@@ -274,14 +306,14 @@ jobs:
           mkdir -p artifacts
           tar -czf "artifacts/$PACKAGE_NAME" -C build .
 
-      # -------------------- Windows MSVC 构建（关键：移除 msvc-ar 脚本） --------------------
+      # === Windows MSVC 构建 ===
       - name: Build FFmpeg (Windows MSVC)
         if: matrix.os == 'windows-latest' && matrix.windows_toolchain == 'msvc'
         shell: pwsh
         env:
           ARTIFACT_SUFFIX: ${{ matrix.artifact_suffix }}
         run: |
-          # 1. 找到 vcvars64.bat
+          # 1. 找 vcvars64.bat
           $programFilesX86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
           $vcvars = $null
           if ($programFilesX86) {
@@ -315,7 +347,7 @@ jobs:
             throw 'Git Bash not found (need Git for Windows)'
           }
 
-          # 3. 写一个 msvc-build.sh（跑在 Git Bash 下）
+          # 3. 写 msvc-build.sh（在 Git Bash 下跑）
           $scriptPath = Join-Path $env:GITHUB_WORKSPACE 'msvc-build.sh'
           $scriptContent = @'
           set -euxo pipefail
@@ -384,7 +416,6 @@ jobs:
             --extra-cflags="-I$INCLUDE_MSYS" \
             --extra-ldflags="-LIBPATH:$LIB_MSYS"
 
-          # 注意：这里不再覆盖 AR，不再使用 msvc-ar.sh，避免生成 libav.obj 相关问题
           make -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
           make install
 
@@ -399,11 +430,10 @@ jobs:
           tar -czf "artifacts/$PACKAGE_NAME" -C build .
           '@
 
-          # 去掉前导缩进写入文件
           $scriptContent = [regex]::Replace($scriptContent, '^\s*', '', [System.Text.RegularExpressions.RegexOptions]::Multiline)
           $scriptContent | Set-Content -Path $scriptPath -Encoding utf8NoBOM
 
-          # 4. 写一个 cmd wrapper，先调用 vcvars64，再跑 bash 脚本
+          # 4. cmd wrapper：先 vcvars，再跑 bash
           $cmdWrapper = @"
           @echo off
           call "$vcvars"
@@ -420,14 +450,14 @@ jobs:
 
           & cmd.exe /c "$cmdWrapperPath"
 
-      # -------------------- 上传 artifacts --------------------
+      # === 上传 artifacts ===
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-${{ env.FFMPEG_VERSION }}-${{ matrix.artifact_suffix }}
           path: artifacts/ffmpeg-${{ env.FFMPEG_VERSION }}-${{ matrix.artifact_suffix }}.tar.gz
 
-  # ==================== 发布 Release ====================
+  # === 发布 Release ===
   release:
     name: Publish release
     runs-on: ubuntu-latest
