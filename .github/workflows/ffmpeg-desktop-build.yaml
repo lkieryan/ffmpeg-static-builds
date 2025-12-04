@@ -118,27 +118,34 @@ jobs:
             mingw-w64-x86_64-ca-certificates
             mingw-w64-x86_64-libxml2
 
-      # === Windows MSVC 依赖 (vcpkg) ===
-      - name: Install build dependencies (Windows MSVC)
+      # === Windows MSVC 工具链（MSYS2 环境，仅用于 make 等） ===
+      - name: Set up MSYS2 environment (Windows MSVC)
         if: matrix.os == 'windows-latest' && matrix.windows_toolchain == 'msvc'
-        shell: pwsh
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            diffutils
+            make
+            zip
+            pkgconf
+            yasm
+            nasm
+            libtool
+            bison
+            automake
+            autoconf
+
+      - name: Clean MSYS2 link and prefix (Windows MSVC)
+        if: matrix.os == 'windows-latest' && matrix.windows_toolchain == 'msvc'
+        shell: msys2 {0}
         run: |
-          choco install -y nasm yasm ninja make --no-progress
-
-          if (-not (Test-Path "$env:GITHUB_WORKSPACE\\vcpkg")) {
-            git clone https://github.com/microsoft/vcpkg "$env:GITHUB_WORKSPACE\\vcpkg"
-          }
-
-          & "$env:GITHUB_WORKSPACE\\vcpkg\\bootstrap-vcpkg.bat" -disableMetrics
-
-          & "$env:GITHUB_WORKSPACE\\vcpkg\\vcpkg.exe" install `
-            zlib:x64-windows `
-            zlib:x64-windows-static `
-            openssl:x64-windows `
-            openssl:x64-windows-static `
-            pkgconf:x64-windows `
-            libxml2:x64-windows `
-            libxml2:x64-windows-static
+          set -euxo pipefail
+          if which link >/dev/null 2>&1; then
+            rm "$(which link)"
+          fi
+          rm -rf /usr/local
 
       # === Linux 构建 ===
       - name: Build FFmpeg (Linux x86_64)
@@ -180,58 +187,21 @@ jobs:
           set -euxo pipefail
           bash ./scripts/windows/windows-mingw-x86_64.sh
 
-      # === Windows MSVC 构建（去掉 --enable-libxml2） ===
+      # === Windows MSVC 构建（使用 msvc/build.sh） ===
       - name: Build FFmpeg (Windows MSVC)
         if: matrix.os == 'windows-latest' && matrix.windows_toolchain == 'msvc'
-        shell: pwsh
+        shell: cmd
         env:
           ARTIFACT_SUFFIX: ${{ matrix.artifact_suffix }}
         run: |
-          $programFilesX86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
-          $vcvars = $null
-          if ($programFilesX86) {
-            $vswhereCandidate = Join-Path $programFilesX86 'Microsoft Visual Studio\Installer\vswhere.exe'
-            if (Test-Path $vswhereCandidate) {
-              $vcvars = & $vswhereCandidate -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find "**\vcvars64.bat" | Select-Object -First 1
-            }
-          }
-          if (-not $vcvars) {
-            $vcvarsCandidates = @(
-              "$env:ProgramFiles\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat",
-              "$env:ProgramFiles\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat",
-              "$env:ProgramFiles\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat",
-              "$env:ProgramFiles\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat",
-              "$env:ProgramFiles(x86)\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat",
-              "$env:ProgramFiles(x86)\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat",
-              "$env:ProgramFiles(x86)\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat",
-              "$env:ProgramFiles(x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
-            )
-            $vcvars = $vcvarsCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-          }
-          if (-not $vcvars) {
-            throw 'vcvars64.bat not found'
-          }
-
-          $bash = Join-Path $env:ProgramFiles 'Git\bin\bash.exe'
-          if (-not (Test-Path $bash)) {
-            throw 'Git Bash not found (need Git for Windows)'
-          }
-
-          $cmdWrapper = @"
-          @echo off
-          call "$vcvars"
-          set "VCPKG_ROOT=%GITHUB_WORKSPACE%\vcpkg"
-          set "VCPKG_TRIPLET_STATIC=x64-windows-static"
-          set "INCLUDE=%INCLUDE%;%VCPKG_ROOT%\installed\%VCPKG_TRIPLET_STATIC%\include"
-          set "LIB=%LIB%;%VCPKG_ROOT%\installed\%VCPKG_TRIPLET_STATIC%\lib"
-          set "PKG_CONFIG_PATH=%VCPKG_ROOT%\installed\%VCPKG_TRIPLET_STATIC%\lib\pkgconfig"
-          "$bash" --noprofile --norc "%GITHUB_WORKSPACE%\scripts\windows\windows-msvc-x86_64.sh"
-          "@
-          $cmdWrapperPath = Join-Path $env:GITHUB_WORKSPACE 'msvc-wrapper.cmd'
-          $cmdWrapper = [regex]::Replace($cmdWrapper, "^(          )", "", [System.Text.RegularExpressions.RegexOptions]::Multiline)
-          $cmdWrapper | Set-Content -Path $cmdWrapperPath -Encoding ascii
-
-          & cmd.exe /c "$cmdWrapperPath"
+          CALL "%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath > vswhere_path.txt
+          SET /P VS_PATH=<vswhere_path.txt
+          IF "%VS_PATH%"=="" (
+            ECHO vcvarsall.bat not found
+            EXIT /B 1
+          )
+          CALL "%VS_PATH%\VC\Auxiliary\Build\vcvarsall.bat" x64
+          msys2 -c "./scripts/windows/msvc/build.sh amd64 shared gpl"
 
       # === 上传 artifacts ===
       - name: Upload artifact
